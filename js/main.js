@@ -1,229 +1,475 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
+import { buildProcedural } from './models/procedural.js';
+import { loadReal } from './models/real.js';
+import { MODELS, MODEL_ORDER, STAT_LABELS, SIZES, SCENES, BASE_BG } from './data.js';
 
 gsap.registerPlugin(ScrollTrigger);
 
-/* ---------- renderer, scene, camera ---------- */
+const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isMobile = () => window.innerWidth < 760;
+const $ = (s) => document.querySelector(s);
+const rub = (n) => `${n.toLocaleString('ru-RU')} ₽`;
 
-const canvas = document.getElementById('canvas');
+/* ---------- state ---------- */
+
+const state = {
+  model: 'aero',
+  colors: {},      // заводская расцветка каждой модели
+  size: null,      // EU
+  scene: 'city',
+};
+
+/* ---------- renderer and scene ---------- */
+
+const canvas = $('#canvas');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.0;
-renderer.setClearColor(0x0f0f11, 1);
 
 const scene = new THREE.Scene();
-const pmrem = new THREE.PMREMGenerator(renderer);
-scene.environment = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
 
 const camera = new THREE.PerspectiveCamera(35, 1, 0.1, 100);
-camera.position.set(0, 0.3, 6.8);
-camera.lookAt(0, 0, 0);
 
 const key = new THREE.DirectionalLight(0xffffff, 2.0);
 key.position.set(3, 5, 4);
-scene.add(key);
-const fill = new THREE.DirectionalLight(0xffe2c8, 0.6);
+const fill = new THREE.DirectionalLight(0xffffff, 0.5);
 fill.position.set(-4, 2, 3);
-scene.add(fill);
 const rim = new THREE.DirectionalLight(0xffffff, 1.0);
 rim.position.set(-3, 4, -4);
-scene.add(rim);
+scene.add(key, fill, rim);
 
-/* ---------- materials ---------- */
+// stage двигается и масштабируется между блоками, holder крутит модель
+const stage = new THREE.Group();
+const holder = new THREE.Group();
+stage.add(holder);
+scene.add(stage);
 
-const mat = {
-  outsole: new THREE.MeshStandardMaterial({ color: 0x1c1c1e, roughness: 0.85 }),
-  midsole: new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.55 }),
-  upper: new THREE.MeshStandardMaterial({ color: 0xff5a1f, roughness: 0.6 }),
-  insole: new THREE.MeshStandardMaterial({ color: 0x3a2f2a, roughness: 0.9 }),
-  tongue: new THREE.MeshStandardMaterial({ color: 0x1c1c1e, roughness: 0.7 }),
-  laces: new THREE.MeshStandardMaterial({ color: 0xf4f1ea, roughness: 0.8 }),
-  tab: new THREE.MeshStandardMaterial({ color: 0x1c1c1e, roughness: 0.7 }),
+const pedestal = new THREE.Mesh(
+  new THREE.CylinderGeometry(1.55, 1.65, 0.28, 72),
+  new THREE.MeshStandardMaterial({ color: 0x1a1d2e, roughness: 0.4, transparent: true, opacity: 0 })
+);
+pedestal.position.y = -0.72;
+stage.add(pedestal);
+
+/* ---------- models ---------- */
+
+const models = {};
+for (const id of ['court', 'skate', 'trail']) models[id] = buildProcedural(id);
+let current = null;
+
+function colorsFor(id) {
+  if (!state.colors[id]) state.colors[id] = { ...models[id].defaults };
+  return state.colors[id];
+}
+
+function showModel(id, instant = false) {
+  const next = models[id];
+  if (!next || next === current) return;
+  const prev = current;
+  current = next;
+  next.applyColors(colorsFor(id));
+  holder.add(next.root);
+
+  if (instant || reduceMotion) {
+    if (prev) holder.remove(prev.root);
+    next.root.scale.setScalar(1);
+    return;
+  }
+  if (prev) {
+    gsap.to(prev.root.scale, {
+      x: 0.001, y: 0.001, z: 0.001, duration: 0.35, ease: 'power2.in',
+      onComplete: () => holder.remove(prev.root),
+    });
+  }
+  next.root.scale.setScalar(0.001);
+  gsap.to(next.root.scale, { x: 1, y: 1, z: 1, duration: 0.7, delay: prev ? 0.25 : 0, ease: 'back.out(1.6)' });
+}
+
+/* ---------- rig: положение модели и камеры по блокам ---------- */
+
+const rig = {
+  x: 0, y: 0, scale: 1, opacity: 1,
+  explodeMix: 0, zoomMix: 0, lockMix: 0, lockAngle: 0, sceneMix: 0,
+  explode: 0, explodeTarget: 0,
+  zoom: 0, zoomTarget: 0,
 };
 
-/* ---------- geometry helpers ---------- */
-
-// Силуэт в плоскости XY, затем выдавливаем по Z (ширина ботинка).
-function roundRect(x0, y0, x1, y1, r) {
-  const s = new THREE.Shape();
-  s.moveTo(x0 + r, y0);
-  s.lineTo(x1 - r, y0);
-  s.quadraticCurveTo(x1, y0, x1, y0 + r);
-  s.lineTo(x1, y1 - r);
-  s.quadraticCurveTo(x1, y1, x1 - r, y1);
-  s.lineTo(x0 + r, y1);
-  s.quadraticCurveTo(x0, y1, x0, y1 - r);
-  s.lineTo(x0, y0 + r);
-  s.quadraticCurveTo(x0, y0, x0 + r, y0);
-  return s;
-}
-
-function slab(shape, depth, bevel) {
-  const g = new THREE.ExtrudeGeometry(shape, {
-    depth,
-    bevelEnabled: true,
-    bevelSize: bevel,
-    bevelThickness: bevel,
-    bevelSegments: 4,
-    curveSegments: 28,
-  });
-  g.translate(0, 0, -depth / 2);
-  return g;
-}
-
-// Силуэт верха: носок, мыс, язык, задник.
-function upperShape() {
-  // Низ — по подошве, верх — от носка к заднику через провал у щиколотки.
-  const s = new THREE.Shape();
-  s.moveTo(-1.0, 0.44);
-  s.lineTo(1.0, 0.44);
-  s.quadraticCurveTo(1.14, 0.46, 1.14, 0.56);   // нос
-  s.quadraticCurveTo(1.05, 0.66, 0.8, 0.7);     // носок
-  s.quadraticCurveTo(0.45, 0.8, 0.2, 0.86);     // переход к союзке
-  s.quadraticCurveTo(-0.05, 0.9, -0.2, 1.02);   // язык
-  s.quadraticCurveTo(-0.35, 0.92, -0.5, 0.92);  // провал у щиколотки
-  s.quadraticCurveTo(-0.75, 0.92, -0.9, 1.06);  // воротник
-  s.quadraticCurveTo(-1.08, 1.06, -1.1, 0.8);   // задник
-  s.quadraticCurveTo(-1.1, 0.55, -1.0, 0.44);
-  return s;
-}
-
-// Сужаем верх по ширине, чтобы он садился на колодку.
-function taperUpper(geo) {
-  const pos = geo.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i);
-    const t = THREE.MathUtils.clamp((y - 0.44) / 0.55, 0, 1);
-    pos.setZ(i, pos.getZ(i) * (1 - 0.3 * t));
+function preset(name) {
+  const m = isMobile();
+  const base = { explodeMix: 0, zoomMix: 0, lockMix: 0, sceneMix: 0, opacity: 1 };
+  switch (name) {
+    case 'hero': return { ...base, x: m ? 0 : 0.95, y: m ? 0.55 : -0.1, scale: m ? 0.8 : 1.05 };
+    case 'explode': return { ...base, x: m ? 0 : -0.8, y: m ? 0.5 : 0, scale: m ? 0.72 : 0.95, explodeMix: 1, lockMix: 1, lockAngle: -0.55 };
+    case 'dim': return { ...base, x: 0, y: m ? 0.6 : 0.2, scale: 0.8, opacity: 0.16 };
+    case 'closeup': return { ...base, x: 0, y: m ? 0.35 : 0, scale: 1, zoomMix: 1, lockMix: 1, lockAngle: 0 };
+    case 'scenes': return { ...base, x: m ? 0 : 0.85, y: m ? 1.6 : 0.15, scale: m ? 0.72 : 0.95, sceneMix: 1 };
+    case 'cart': return { ...base, x: m ? 0 : 0.85, y: m ? 1.7 : 0, scale: m ? 0.72 : 0.95 };
+    default: return base;
   }
-  pos.needsUpdate = true;
-  geo.computeVertexNormals();
-  return geo;
 }
 
-/* ---------- model ---------- */
-
-const model = new THREE.Group();
-model.position.y = -0.55; // центрируем модель по вертикали
-scene.add(model);
-
-const parts = {};
-
-function addPart(name, geometry, material, base) {
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.position.copy(base);
-  mesh.castShadow = false;
-  model.add(mesh);
-  parts[name] = { mesh, base: base.clone() };
-  return mesh;
+let currentPreset = 'hero';
+function goPreset(name, instant = false) {
+  currentPreset = name;
+  const p = preset(name);
+  if (instant || reduceMotion) gsap.set(rig, p);
+  else gsap.to(rig, { ...p, duration: 1.1, ease: 'power3.inOut', overwrite: 'auto' });
 }
 
-// Подошва (резина) и промежуточная подошва
-addPart('outsole', slab(roundRect(-1.06, 0.0, 1.22, 0.13, 0.06), 0.56, 0.02), mat.outsole, new THREE.Vector3());
-addPart('midsole', slab(roundRect(-1.02, 0.12, 1.18, 0.36, 0.1), 0.52, 0.05), mat.midsole, new THREE.Vector3());
+document.querySelectorAll('[data-rig]').forEach((sec) => {
+  ScrollTrigger.create({
+    trigger: sec,
+    start: 'top 55%',
+    end: 'bottom 45%',
+    onEnter: () => goPreset(sec.dataset.rig),
+    onEnterBack: () => goPreset(sec.dataset.rig),
+  });
+});
 
-// Стелька
-addPart('insole', slab(roundRect(-0.92, 0.36, 1.0, 0.44, 0.04), 0.42, 0.02), mat.insole, new THREE.Vector3());
-
-// Верх
-const upperGeo = taperUpper(slab(upperShape(), 0.42, 0.13));
-addPart('upper', upperGeo, mat.upper, new THREE.Vector3());
-
-// Язычок
-addPart('tongue', slab(roundRect(-0.66, 0.84, -0.18, 1.12, 0.1), 0.26, 0.03), mat.tongue, new THREE.Vector3());
-
-// Задник
-addPart('tab', slab(roundRect(-1.14, 0.7, -0.98, 0.98, 0.05), 0.22, 0.02), mat.tab, new THREE.Vector3());
-
-// Шнурки: зигзаг поперёк верха
-const laceCurve = new THREE.CatmullRomCurve3(
-  [-0.62, -0.42, -0.22, -0.02, 0.16].map((x, i) =>
-    new THREE.Vector3(x, [1.04, 1.0, 1.0, 0.92, 0.86][i], i % 2 === 0 ? -0.16 : 0.16)
-  )
-);
-addPart('laces', new THREE.TubeGeometry(laceCurve, 64, 0.034, 10, false), mat.laces, new THREE.Vector3());
-
-/* ---------- explode plan ---------- */
-
-// Каждая часть уезжает в свою сторону, по очереди. Порядок совпадает с главами.
-const plan = [
-  { name: 'outsole', at: 0.0, to: [0.0, -0.5, 0.0] },
-  { name: 'midsole', at: 0.25, to: [0.0, -0.2, 0.0] },
-  { name: 'insole', at: 0.25, to: [0.0, 0.0, 0.8] },
-  { name: 'upper', at: 0.5, to: [0.0, 0.5, -0.5] },
-  { name: 'tab', at: 0.5, to: [-0.7, 0.45, 0.0] },
-  { name: 'tongue', at: 0.75, to: [0.0, 0.5, 0.8] },
-  { name: 'laces', at: 0.75, to: [0.25, 0.55, 0.9] },
-];
-
-/* ---------- timeline driven by scroll ---------- */
+/* ---------- 2. разбор по скроллу ---------- */
 
 const chapters = document.querySelectorAll('#chapters li');
-const intro = document.getElementById('intro');
-const bar = document.getElementById('bar');
+const explodeBar = $('#explodeBar');
+let activeChapter = -1;
 
-const tl = gsap.timeline({
-  scrollTrigger: {
-    trigger: '#scroll',
-    start: 'top top',
-    end: 'bottom bottom',
-    scrub: 0.6,
+ScrollTrigger.create({
+  trigger: '#explode',
+  start: 'top top',
+  end: 'bottom bottom',
+  onUpdate: (self) => {
+    rig.explodeTarget = self.progress;
+    explodeBar.style.width = `${(self.progress * 100).toFixed(1)}%`;
+    const idx = Math.min(chapters.length - 1, Math.floor(self.progress * chapters.length));
+    if (idx !== activeChapter) {
+      activeChapter = idx;
+      chapters.forEach((li, i) => li.classList.toggle('is-active', i === idx));
+    }
   },
 });
+chapters[0].classList.add('is-active');
 
-// Вступление гаснет в начале
-tl.to(intro, { opacity: 0, duration: 0.08 }, 0);
+/* ---------- 5. крупный план ---------- */
 
-// Разборка деталей
-plan.forEach((p) => {
-  const b = parts[p.name].base;
-  tl.to(
-    parts[p.name].mesh.position,
-    { x: b.x + p.to[0], y: b.y + p.to[1], z: b.z + p.to[2], duration: 0.25, ease: 'power2.inOut' },
-    p.at
-  );
+ScrollTrigger.create({
+  trigger: '#closeup',
+  start: 'top top',
+  end: 'bottom bottom',
+  onUpdate: (self) => { rig.zoomTarget = Math.min(1, self.progress / 0.6); },
 });
 
-// Главы: каждая появляется на своём отрезке и уходит перед следующей
-chapters.forEach((li, i) => {
-  const start = i * 0.25;
-  tl.fromTo(li, { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.08 }, start + 0.02);
-  if (i < chapters.length - 1) {
-    tl.to(li, { opacity: 0, y: -16, duration: 0.08 }, start + 0.22);
+/* ---------- 6. сцены ---------- */
+
+const baseBg = new THREE.Color(BASE_BG);
+const white = new THREE.Color(0xffffff);
+const sceneCol = {
+  bg: new THREE.Color(SCENES.city.bg),
+  key: new THREE.Color(SCENES.city.key),
+  rim: new THREE.Color(SCENES.city.rim),
+  fill: new THREE.Color(SCENES.city.fill),
+  pedestal: new THREE.Color(SCENES.city.pedestal),
+};
+
+function setScene(id, instant = false, save = true) {
+  state.scene = id;
+  const s = SCENES[id];
+  for (const k of Object.keys(sceneCol)) {
+    const c = new THREE.Color(s[k]);
+    if (instant || reduceMotion) sceneCol[k].copy(c);
+    else gsap.to(sceneCol[k], { r: c.r, g: c.g, b: c.b, duration: 0.8, ease: 'power2.out' });
   }
+  renderScenes();
+  if (save) saveURL();
+}
+
+/* ---------- UI: 1. выбор модели ---------- */
+
+function selectModel(id) {
+  if (!models[id]) return;
+  state.model = id;
+  showModel(id);
+  renderAll();
+  saveURL();
+}
+
+function renderPicker() {
+  const el = $('#picker');
+  el.innerHTML = '';
+  for (const id of MODEL_ORDER) {
+    const m = MODELS[id];
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'pick';
+    b.setAttribute('role', 'tab');
+    b.setAttribute('aria-selected', String(id === state.model));
+    b.disabled = !models[id];
+    b.innerHTML = `<span class="pick__name">${m.name}</span><span class="pick__tag">${m.tagline}</span><span class="pick__price">${rub(m.price)}</span>`;
+    b.addEventListener('click', () => selectModel(id));
+    el.appendChild(b);
+  }
+  $('#heroName').textContent = MODELS[state.model].name;
+  $('#heroTagline').textContent = MODELS[state.model].tagline;
+}
+
+/* ---------- UI: 3. сравнение ---------- */
+
+function renderCompare() {
+  const grid = $('#compareGrid');
+  grid.innerHTML = '';
+  for (const id of MODEL_ORDER) {
+    const m = MODELS[id];
+    const card = document.createElement('article');
+    card.className = `card${id === state.model ? ' is-current' : ''}`;
+    card.tabIndex = 0;
+    card.setAttribute('aria-label', `${m.name}, выбрать`);
+    const stats = Object.entries(STAT_LABELS).map(([k, s]) => {
+      const v = m.stats[k];
+      return `<div class="stat"><div class="stat__row"><span>${s.label}</span><b>${v} ${s.unit}</b></div>
+        <div class="stat__bar"><span style="--w:${Math.round((v / s.max) * 100)}%"></span></div></div>`;
+    }).join('');
+    card.innerHTML = `<h3>${m.name}</h3><p class="card__price">${rub(m.price)}</p>${stats}`;
+    const pick = () => selectModel(id);
+    card.addEventListener('click', pick);
+    card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
+    grid.appendChild(card);
+  }
+}
+
+ScrollTrigger.create({
+  trigger: '#compare',
+  start: 'top 60%',
+  once: true,
+  onEnter: () => $('#compare').classList.add('is-in'),
 });
 
-// Прогресс и поворот модели
-tl.to(bar, { width: '100%', ease: 'none', duration: 1 }, 0);
-tl.fromTo(model.rotation, { y: -0.6 }, { y: 0.5, ease: 'none', duration: 1 }, 0);
-model.rotation.x = 0.15;
+/* ---------- расцветка в корзине ---------- */
 
-/* ---------- resize ---------- */
+// Витрина без редактора: каждая модель в своей заводской расцветке.
+const COLOR_NAMES = {
+  '#ff5a1f': 'оранжевый', '#f4f1ea': 'молочный', '#1c1c1e': 'чёрный',
+  '#9fae97': 'шалфей', '#e9c46a': 'горчичный',
+};
+
+function colorSummary() {
+  const c = colorsFor(state.model);
+  if (models[state.model].variants) return c.variant[0].toUpperCase() + c.variant.slice(1);
+  const n = (hex) => COLOR_NAMES[hex] || hex;
+  return `верх ${n(c.upper)}, подошва ${n(c.sole)}`;
+}
+
+/* ---------- UI: 5. материал ---------- */
+
+function renderMaterial() {
+  const m = MODELS[state.model].material;
+  $('#materialTitle').textContent = m.title;
+  $('#materialText').textContent = m.text;
+}
+
+/* ---------- UI: 6. сцены ---------- */
+
+function renderScenes() {
+  const seg = $('#sceneSeg');
+  seg.innerHTML = '';
+  for (const [id, s] of Object.entries(SCENES)) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = s.name;
+    b.setAttribute('aria-pressed', String(id === state.scene));
+    b.addEventListener('click', () => setScene(id));
+    seg.appendChild(b);
+  }
+}
+
+/* ---------- UI: 7. размер ---------- */
+
+function renderSizes() {
+  const grid = $('#sizeGrid');
+  grid.innerHTML = '';
+  for (const s of SIZES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'size__btn';
+    b.setAttribute('aria-pressed', String(s.eu === state.size));
+    b.setAttribute('aria-label', `EU ${s.eu}, стелька ${s.cm} см`);
+    b.innerHTML = `${s.eu}<small>${s.cm} см</small>`;
+    b.addEventListener('click', () => selectSize(s.eu));
+    grid.appendChild(b);
+  }
+}
+
+function sizeText(s) {
+  return `Ваш размер: <b>EU ${s.eu}</b> · US ${s.us} · UK ${s.uk}. Длина стельки ${s.cm} см.`;
+}
+
+function selectSize(eu) {
+  state.size = eu;
+  const s = SIZES.find((x) => x.eu === eu);
+  $('#sizeResult').innerHTML = sizeText(s);
+  renderSizes();
+  renderCart();
+  saveURL();
+}
+
+$('#footCm').addEventListener('input', (e) => {
+  const cm = parseFloat(String(e.target.value).replace(',', '.'));
+  const res = $('#sizeResult');
+  if (!cm || cm < 20) { res.textContent = 'Введите длину стопы от 20 до 32 см.'; return; }
+  const s = SIZES.find((x) => x.cm >= cm);
+  if (!s) { res.textContent = 'Больше 46-го размера у нас пока нет.'; return; }
+  selectSize(s.eu);
+});
+
+/* ---------- UI: 8. корзина ---------- */
+
+function renderCart() {
+  const m = MODELS[state.model];
+  $('#cartName').textContent = m.name;
+  $('#cartColor').textContent = colorSummary();
+  $('#cartSize').textContent = state.size ? `EU ${state.size}` : 'не выбран';
+  $('#cartPrice').textContent = rub(m.price);
+  $('#topPrice').textContent = rub(m.price);
+}
+
+$('#checkout').addEventListener('click', () => {
+  const hint = $('#cartHint');
+  if (!state.size) {
+    hint.textContent = 'Сначала выберите размер.';
+    $('#size').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
+    return;
+  }
+  hint.textContent = 'Готово. Это демо, заказ никуда не отправлен.';
+});
+
+function renderAll() {
+  renderPicker();
+  renderCompare();
+  renderMaterial();
+  renderScenes();
+  renderSizes();
+  renderCart();
+}
+
+/* ---------- URL: модель, размер и сцена в ссылке ---------- */
+
+function saveURL() {
+  const p = new URLSearchParams();
+  p.set('m', state.model);
+  if (state.size) p.set('sz', state.size);
+  if (state.scene !== 'city') p.set('sc', state.scene);
+  history.replaceState(null, '', `?${p}${location.hash}`);
+}
+
+function readURL() {
+  const p = new URLSearchParams(location.search);
+  const m = p.get('m');
+  if (m && MODELS[m]) state.model = m;
+  const sz = Number(p.get('sz'));
+  if (SIZES.some((s) => s.eu === sz)) state.size = sz;
+  const sc = p.get('sc');
+  if (sc && SCENES[sc]) state.scene = sc;
+}
+
+/* ---------- resize and loop ---------- */
+
+const camBase = new THREE.Vector3();
+const camPos = new THREE.Vector3();
+const lookBase = new THREE.Vector3(0, 0.05, 0);
+const look = new THREE.Vector3();
+const closeOffset = new THREE.Vector3(0.45, 0.25, 2.1);
+const closeLook = new THREE.Vector3(0.35, 0.05, 0);
 
 function resize() {
-  const w = canvas.clientWidth;
-  const h = canvas.clientHeight;
+  const w = window.innerWidth;
+  const h = window.innerHeight;
   renderer.setSize(w, h, false);
   camera.aspect = w / h;
-  // Узкий экран: отъезжаем, чтобы модель с разобранными деталями влезла.
-  const visibleWidth = 3.2;
-  const distForWidth = visibleWidth / (2 * Math.tan(THREE.MathUtils.degToRad(17.5)) * camera.aspect);
-  camera.position.z = Math.max(6.8, distForWidth);
-  // На широком экране сдвигаем модель влево, справа место под главы.
-  model.position.x = camera.aspect > 1 ? -0.9 : 0;
+  const needWidth = 3.0;
+  const dist = needWidth / (2 * Math.tan(THREE.MathUtils.degToRad(17.5)) * camera.aspect);
+  camBase.set(0, 0.35, Math.max(6.4, dist));
   camera.updateProjectionMatrix();
+  goPreset(currentPreset, true);
 }
-new ResizeObserver(resize).observe(canvas);
-resize();
-
-/* ---------- loop ---------- */
+window.addEventListener('resize', resize);
 
 const clock = new THREE.Clock();
-renderer.setAnimationLoop(() => {
-  const t = clock.getElapsedTime();
-  // Лёгкое покачивание, чтобы модель не стояла мёртво
-  model.position.y = -0.55 + Math.sin(t * 0.9) * 0.015;
+let spin = 0;
+let lastOpacity = -1;
+const tmp = new THREE.Color();
+
+function angleLerp(from, to, t) {
+  const d = ((from - to + Math.PI) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) - Math.PI;
+  return to + d * (1 - t);
+}
+
+function frame() {
+  const dt = Math.min(clock.getDelta(), 0.05);
+  if (!reduceMotion) spin += dt * 0.35;
+
+  const k = Math.min(1, dt * 6);
+  rig.explode += (rig.explodeTarget - rig.explode) * k;
+  rig.zoom += (rig.zoomTarget - rig.zoom) * k;
+
+  stage.position.set(rig.x, rig.y, 0);
+  stage.scale.setScalar(rig.scale);
+  holder.rotation.y = angleLerp(spin, rig.lockAngle, rig.lockMix);
+  holder.rotation.x = 0.12;
+  if (current) current.setExplode(rig.explode * rig.explodeMix);
+
+  if (Math.abs(rig.opacity - lastOpacity) > 0.002) {
+    canvas.style.opacity = rig.opacity.toFixed(3);
+    lastOpacity = rig.opacity;
+  }
+
+  // Цвета сцены
+  const sm = rig.sceneMix;
+  renderer.setClearColor(tmp.copy(baseBg).lerp(sceneCol.bg, sm));
+  key.color.copy(white).lerp(sceneCol.key, sm);
+  rim.color.copy(white).lerp(sceneCol.rim, sm);
+  fill.color.copy(white).lerp(sceneCol.fill, sm);
+  rim.intensity = 1 + sm * 1.6;
+  fill.intensity = 0.5 + sm * 0.6;
+  pedestal.material.opacity = sm;
+  pedestal.visible = sm > 0.01;
+  pedestal.material.color.copy(sceneCol.pedestal);
+
+  // Камера: от общего плана к крупному
+  const z = rig.zoom * rig.zoomMix;
+  camPos.copy(stage.position).add(closeOffset);
+  camera.position.copy(camBase).lerp(camPos, z);
+  look.copy(stage.position).add(closeLook);
+  camera.lookAt(look.lerp(lookBase, 1 - z));
+
   renderer.render(scene, camera);
-});
+}
+
+/* ---------- start ---------- */
+
+readURL();
+resize();
+setScene(state.scene, true, false);
+
+const loaderEl = $('#loader');
+const loaderBar = $('#loaderBar');
+
+function start() {
+  showModel(state.model, true);
+  if (state.size) $('#sizeResult').innerHTML = sizeText(SIZES.find((s) => s.eu === state.size));
+  renderAll();
+  saveURL();
+  loaderEl.classList.add('is-done');
+  renderer.setAnimationLoop(frame);
+  ScrollTrigger.refresh();
+}
+
+loadReal('assets/aero.glb', (p) => { loaderBar.style.width = `${Math.round(p * 100)}%`; })
+  .then((m) => {
+    models.aero = m;
+    window.__parts = m.partsCount;
+  })
+  .catch((err) => {
+    console.error('Не загрузилась модель Orbit Aero', err);
+    if (state.model === 'aero') state.model = 'court';
+  })
+  .finally(start);

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AIR ORBIT 01 — разбор кроссовки</title>
-  <meta name="description" content="Кроссовка по скроллу разбирается на слои: подошва, промежуточная подошва, верх, шнурки. Модель строится в 3D в браузере.">
+  <title>ORBIT — кроссовки в 3D</title>
+  <meta name="description" content="Витрина кроссовок в 3D: четыре модели, разбор по слоям, сравнение, материал крупным планом, сцены, подбор размера и корзина.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
@@ -19,49 +19,113 @@
   </script>
 </head>
 <body>
+  <canvas id="canvas" aria-hidden="true"></canvas>
+
+  <div class="loader" id="loader">
+    <span class="loader__label">Загружаем модель</span>
+    <span class="loader__bar"><span id="loaderBar"></span></span>
+  </div>
+
   <header class="top">
-    <span class="logo">AIR ORBIT</span>
-    <span class="top__price">12 900 ₽</span>
+    <a class="logo" href="#hero">ORBIT</a>
+    <nav class="nav" aria-label="Разделы">
+      <a href="#explode">Разбор</a>
+      <a href="#compare">Сравнение</a>
+      <a href="#scenes">Сцены</a>
+      <a href="#size">Размер</a>
+    </nav>
+    <a class="top__cart" href="#cart"><span id="topPrice">14 900 ₽</span></a>
   </header>
 
-  <section class="scroll" id="scroll">
-    <div class="sticky">
-      <canvas id="canvas" aria-label="3D-модель кроссовки"></canvas>
-
-      <div class="intro" id="intro">
-        <p class="eyebrow">Новинка · 2026</p>
-        <h1>AIR<br>ORBIT 01</h1>
-        <p class="lead">Прокрути, чтобы увидеть, из чего она сделана.</p>
+  <main>
+    <!-- 1. Выбор модели -->
+    <section class="block hero" id="hero" data-rig="hero">
+      <div class="hero__text">
+        <p class="eyebrow">Коллекция 2026</p>
+        <h1 id="heroName">Orbit Aero</h1>
+        <p class="lead" id="heroTagline">Беговая, на каждый день</p>
       </div>
+      <div class="picker" role="tablist" aria-label="Модель" id="picker"></div>
+    </section>
 
-      <ol class="chapters" id="chapters">
-        <li data-step="0">
-          <span class="num">01</span>
-          <div><h2>Подошва</h2><p>Резина с рисунком сцепления для асфальта и мокрых улиц.</p></div>
-        </li>
-        <li data-step="1">
-          <span class="num">02</span>
-          <div><h2>Амортизация</h2><p>Промежуточная подошва из вспененного полимера возвращает энергию шага.</p></div>
-        </li>
-        <li data-step="2">
-          <span class="num">03</span>
-          <div><h2>Верх</h2><p>Дышащий текстиль без швов в зоне носка. Легче на 18% прежней модели.</p></div>
-        </li>
-        <li data-step="3">
-          <span class="num">04</span>
-          <div><h2>Шнуровка</h2><p>Плоские шнурки и язычок на подкладке, чтобы не натирало.</p></div>
-        </li>
-      </ol>
+    <!-- 2. Разбор по слоям -->
+    <section class="block explode" id="explode" data-rig="explode">
+      <div class="explode__sticky">
+        <ol class="chapters" id="chapters">
+          <li><span class="num">01</span><div><h2>Шнуровка</h2><p>Шнурки и язычок снимаются первыми. Язычок на подкладке, чтобы не натирало.</p></div></li>
+          <li><span class="num">02</span><div><h2>Верх</h2><p>У каждой модели свой верх: сетка, кожа или замша. Накладки и люверсы держат форму.</p></div></li>
+          <li><span class="num">03</span><div><h2>Стелька</h2><p>Съёмная, из пены с памятью формы. Её можно вынуть и просушить.</p></div></li>
+          <li><span class="num">04</span><div><h2>Подошва</h2><p>Промежуточная подошва амортизирует шаг, резина снаружи отвечает за сцепление.</p></div></li>
+        </ol>
+        <div class="explode__progress" aria-hidden="true"><span id="explodeBar"></span></div>
+      </div>
+    </section>
 
-      <div class="progress" aria-hidden="true"><span id="bar"></span></div>
-    </div>
-  </section>
+    <!-- 3. Сравнение -->
+    <section class="block compare" id="compare" data-rig="dim">
+      <header class="block__head">
+        <p class="eyebrow">Сравнение</p>
+        <h2>Какая пара твоя</h2>
+      </header>
+      <div class="compare__grid" id="compareGrid"></div>
+    </section>
 
-  <section class="outro">
-    <h2>Собери свою пару</h2>
-    <p>Цвет подошвы, верха и шнурков. Размеры с 36 по 46.</p>
-    <button type="button" class="cta">Выбрать размер</button>
-  </section>
+    <!-- 5. Крупный план материала -->
+    <section class="block closeup" id="closeup" data-rig="closeup">
+      <div class="closeup__sticky">
+        <div class="closeup__text">
+          <p class="eyebrow">Материал</p>
+          <h2 id="materialTitle">Вязаный верх</h2>
+          <p id="materialText"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Сцены -->
+    <section class="block scenes" id="scenes" data-rig="scenes">
+      <div class="panel">
+        <p class="eyebrow">Где носить</p>
+        <h2>Примерь сцену</h2>
+        <div class="seg" id="sceneSeg"></div>
+      </div>
+    </section>
+
+    <!-- 7. Размер -->
+    <section class="block size" id="size" data-rig="dim">
+      <header class="block__head">
+        <p class="eyebrow">Размер</p>
+        <h2>Подберём по стопе</h2>
+      </header>
+      <div class="size__wrap">
+        <label class="size__input">
+          <span>Длина стопы, см</span>
+          <input id="footCm" type="number" inputmode="decimal" min="20" max="32" step="0.5" placeholder="26.5">
+        </label>
+        <p class="size__result" id="sizeResult">Встаньте пяткой к стене и измерьте до кончика самого длинного пальца.</p>
+        <div class="size__grid" id="sizeGrid" role="group" aria-label="Размер EU"></div>
+      </div>
+    </section>
+
+    <!-- 8. Корзина -->
+    <section class="block cart" id="cart" data-rig="cart">
+      <div class="panel">
+        <p class="eyebrow">Корзина</p>
+        <h2 id="cartName">Orbit Aero</h2>
+        <dl class="cart__list">
+          <div><dt>Цвет</dt><dd id="cartColor">—</dd></div>
+          <div><dt>Размер</dt><dd id="cartSize">не выбран</dd></div>
+          <div><dt>Цена</dt><dd id="cartPrice">—</dd></div>
+        </dl>
+        <button type="button" class="cta" id="checkout">Оформить заказ</button>
+        <p class="hint" id="cartHint" role="status" aria-live="polite"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="foot">
+    <p>Демо для портфолио. Магазин не настоящий, заказ никуда не отправляется.</p>
+    <p>3D-модель Orbit Aero: <a href="https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/MaterialsVariantsShoe" target="_blank" rel="noopener">Materials Variants Shoe</a>, © 2021 Shopify, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Модель разделена на детали в коде. Остальные модели построены процедурно.</p>
+  </footer>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
