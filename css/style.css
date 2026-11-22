@@ -28,8 +28,10 @@ html, body {
   color: var(--ink);
   font-family: "Manrope", system-ui, sans-serif;
 }
-html { scroll-behavior: smooth; }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+/* Плавную прокрутку делает Lenis, родная плавность ему мешает */
+html.lenis, html.lenis body { height: auto; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
+.lenis.lenis-stopped { overflow: hidden; }
 
 a { color: inherit; }
 
@@ -104,6 +106,35 @@ a { color: inherit; }
   z-index: 2;
 }
 main, .foot { position: relative; z-index: 3; }
+
+/* ---------- подписи деталей ---------- */
+.callouts {
+  position: fixed;
+  inset: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+.callouts__lines { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.callouts__lines line { stroke: var(--accent); stroke-width: 1.2; }
+.callouts__lines circle { fill: var(--bg); stroke: var(--accent); stroke-width: 1.5; }
+.callout {
+  position: absolute;
+  left: 0; top: 0;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--panel);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: var(--ink);
+  will-change: transform, opacity;
+}
+@media (max-width: 760px) { .callout { font-size: 10px; padding: 4px 8px; } }
 
 .tilt-btn {
   margin-top: 18px;
@@ -452,4 +483,73 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 
   .closeup__text { left: 16px; right: 16px; bottom: 32px; background: var(--panel); padding: 16px; border-radius: 14px; }
   .size__grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+
+/* ---------- фоны сцен (под прозрачной 3D-сценой) ---------- */
+.scenebg { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+.sb { position: absolute; inset: 0; opacity: 0; overflow: hidden; }
+
+/* Город ночью: неон, небоскрёбы с окнами, дождь, мокрый асфальт */
+.sb-city__sky { position: absolute; inset: 0; background: linear-gradient(#05061a 0%, #140c2e 45%, #2b0f33 70%, #0a0814 100%); }
+.sb-city__neon {
+  position: absolute; inset: 0;
+  background:
+    radial-gradient(40% 30% at 20% 62%, rgba(255, 62, 165, .45), transparent 70%),
+    radial-gradient(38% 28% at 82% 58%, rgba(62, 224, 255, .38), transparent 70%);
+  animation: neonPulse 3.2s ease-in-out infinite alternate;
+}
+.sb-skyline { position: absolute; left: 0; right: 0; bottom: 18%; width: 100%; height: 62%; }
+.sb-city__rain {
+  position: absolute; inset: -20% 0 0;
+  background: repeating-linear-gradient(100deg, transparent 0 22px, rgba(180, 200, 255, .09) 22px 23px);
+  background-size: 100% 260px;
+  animation: rain .6s linear infinite;
+}
+.sb-city__wet {
+  position: absolute; left: 0; right: 0; bottom: 0; height: 22%;
+  background: linear-gradient(rgba(255, 62, 165, .22), rgba(10, 8, 20, .95) 70%);
+}
+@keyframes rain { to { transform: translateY(260px); } }
+@keyframes neonPulse { from { opacity: .75; } to { opacity: 1; } }
+
+/* Спортзал: стена, щит с кольцом, паркет с разметкой, луч прожектора */
+.sb-gym__wall { position: absolute; inset: 0; background: linear-gradient(#120b07 0%, #24160d 55%, #3a2414 100%); }
+.sb-hoop { position: absolute; left: 7%; top: 14%; width: clamp(120px, 15vw, 220px); opacity: .7; }
+.sb-gym__floor {
+  position: absolute; left: -30%; right: -30%; bottom: -10%; height: 48%;
+  background:
+    linear-gradient(rgba(0, 0, 0, .55), transparent 40%),
+    repeating-linear-gradient(90deg, #8a5a32 0 46px, #9c6a3c 46px 92px, #7d5130 92px 138px);
+  transform: perspective(600px) rotateX(58deg);
+  transform-origin: 50% 100%;
+}
+.sb-gym__lines {
+  position: absolute; left: 50%; top: 30%; width: 46%; aspect-ratio: 1; transform: translateX(-50%);
+  border: 6px solid rgba(255, 122, 47, .8); border-radius: 50%;
+}
+.sb-gym__cone {
+  position: absolute; left: 50%; top: -10%; width: 70%; height: 120%; transform: translateX(-30%);
+  background: linear-gradient(rgba(255, 220, 170, .32), rgba(255, 220, 170, 0) 85%);
+  clip-path: polygon(44% 0, 56% 0, 100% 100%, 0 100%);
+  filter: blur(18px);
+}
+
+/* Тропа: закатное небо, солнце, слои гор с ельником, туман */
+.sb-trail__sky { position: absolute; inset: 0; background: linear-gradient(#0b1712 0%, #1f3a2b 40%, #6e7a4a 62%, #e0a55a 78%, #2a3a25 100%); }
+.sb-trail__sun {
+  position: absolute; left: 62%; top: 50%; width: 38vmax; height: 38vmax; transform: translate(-50%, -50%);
+  background: radial-gradient(circle, rgba(255, 214, 140, .95) 0 6%, rgba(255, 170, 90, .35) 18%, transparent 60%);
+}
+.sb-mountains { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 70%; }
+.sb-trail__mist {
+  position: absolute; left: -20%; right: -20%; bottom: 14%; height: 22%;
+  background: linear-gradient(transparent, rgba(220, 235, 220, .22), transparent);
+  filter: blur(10px);
+  animation: mist 26s ease-in-out infinite alternate;
+}
+.sb-trail__mist--2 { bottom: 4%; height: 16%; opacity: .7; animation-duration: 34s; animation-direction: alternate-reverse; }
+@keyframes mist { from { transform: translateX(-6%); } to { transform: translateX(6%); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .sb-city__rain, .sb-city__neon, .sb-trail__mist { animation: none; }
 }

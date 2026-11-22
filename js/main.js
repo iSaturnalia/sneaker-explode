@@ -1,9 +1,10 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
-import { loadGltfModel } from './models/gltf.js?v=4';
-import { loadReal } from './models/real.js?v=4';
-import { MODELS, MODEL_ORDER, SCENES, THEMES } from './data.js?v=4';
+import { loadGltfModel } from './models/gltf.js?v=5';
+import { createScenes } from './scenes.js?v=5';
+import { loadReal } from './models/real.js?v=5';
+import { MODELS, MODEL_ORDER, SCENES, THEMES } from './data.js?v=5';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -25,6 +26,55 @@ gsap.registerPlugin(ScrollTrigger);
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const isMobile = () => window.innerWidth < 760;
 const $ = (s) => document.querySelector(s);
+
+/* ---------- плавная прокрутка ---------- */
+
+// Lenis сглаживает скролл. Ограничиваем, насколько страница может «убежать» вперёд
+// за один жест, и гасим разгон после свайпа: одним махом всё не пролистать.
+const MAX_AHEAD = 0.5; // доля высоты экрана
+let lenis = null;
+if (!reduceMotion && window.Lenis) {
+  lenis = new window.Lenis({
+    lerp: 0.07,
+    wheelMultiplier: 0.7,
+    syncTouch: true,
+    syncTouchLerp: 0.06,
+    touchMultiplier: 0.9,
+    touchInertiaMultiplier: 18,
+    virtualScroll(e) {
+      if (e.event.type === 'touchend') {
+        // После свайпа страница докатывается не дальше чем на ~0,9 экрана
+        const vMax = (innerHeight * 0.9) / lenis.options.touchInertiaMultiplier;
+        lenis.velocity = Math.max(-vMax, Math.min(vMax, lenis.velocity));
+        return true;
+      }
+      const cap = innerHeight * MAX_AHEAD;
+      const ahead = lenis.targetScroll - lenis.animatedScroll;
+      const room = e.deltaY > 0 ? cap - ahead : -cap - ahead;
+      e.deltaY = e.deltaY > 0 ? Math.max(0, Math.min(e.deltaY, room)) : Math.min(0, Math.max(e.deltaY, room));
+      return true;
+    },
+  });
+  lenis.on('scroll', ScrollTrigger.update);
+  gsap.ticker.add((time) => lenis.raf(time * 1000));
+  gsap.ticker.lagSmoothing(0);
+}
+
+function scrollToEl(el) {
+  if (!el) return;
+  if (lenis) lenis.scrollTo(el, { duration: 1.6, easing: (t) => 1 - Math.pow(1 - t, 4) });
+  else el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
+}
+
+// Ссылки меню тоже едут плавно
+document.querySelectorAll('a[href^="#"]').forEach((a) => {
+  a.addEventListener('click', (e) => {
+    const el = document.querySelector(a.getAttribute('href'));
+    if (!el) return;
+    e.preventDefault();
+    scrollToEl(el);
+  });
+});
 
 /* ---------- state ---------- */
 
@@ -62,12 +112,11 @@ const holder = new THREE.Group();
 stage.add(holder);
 scene.add(stage);
 
-const pedestal = new THREE.Mesh(
-  new THREE.CylinderGeometry(1.55, 1.65, 0.28, 72),
-  new THREE.MeshStandardMaterial({ color: 0x1a1d2e, roughness: 0.4, transparent: true, opacity: 0 })
-);
-pedestal.position.y = -0.72;
-stage.add(pedestal);
+// Постаменты, фон и свет блока сцен — в js/scenes.js
+const FLOOR_Y = -0.6; // уровень пола: на нём стоят кроссовки, отражение и постаменты
+const scenes = createScenes({ stage, floorY: FLOOR_Y, backdrop: document.getElementById('backdrop'), reduceMotion });
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
 /* ---------- отражающий пол ---------- */
 
@@ -124,7 +173,7 @@ const floor = new Reflector(new THREE.PlaneGeometry(7, 7), {
 });
 floor.material.transparent = true;
 floor.rotation.x = -Math.PI / 2;
-floor.position.y = -0.6;
+floor.position.y = FLOOR_Y;
 stage.add(floor);
 
 // Мягкая тень под кроссовкой
@@ -144,8 +193,81 @@ const contactShadow = new THREE.Mesh(
   new THREE.MeshBasicMaterial({ map: makeShadowTexture(), transparent: true, depthWrite: false })
 );
 contactShadow.rotation.x = -Math.PI / 2;
-contactShadow.position.y = -0.595;
+contactShadow.position.y = FLOOR_Y + 0.004;
 stage.add(contactShadow);
+
+/* ---------- блик курсора на полу ---------- */
+
+// Светящаяся точка висит над полом там, куда указывает курсор: зеркальный пол
+// её отражает, а пятно и слабый свет под ней подсвечивают кроссовку.
+function makeGlowTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(255,255,255,1)');
+  grad.addColorStop(0.18, 'rgba(255,255,255,0.55)');
+  grad.addColorStop(0.5, 'rgba(255,255,255,0.12)');
+  grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 128, 128);
+  return new THREE.CanvasTexture(c);
+}
+const glowTex = makeGlowTexture();
+const cursorOrb = new THREE.Sprite(new THREE.SpriteMaterial({
+  map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0,
+}));
+cursorOrb.scale.setScalar(0.32);
+const cursorPool = new THREE.Mesh(
+  new THREE.PlaneGeometry(1.4, 1.4),
+  new THREE.MeshBasicMaterial({ map: glowTex, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, opacity: 0 })
+);
+cursorPool.rotation.x = -Math.PI / 2;
+const cursorLight = new THREE.PointLight(0xffffff, 0, 2.2, 1.6);
+stage.add(cursorOrb, cursorPool, cursorLight);
+
+const raycaster = new THREE.Raycaster();
+const pointerNdc = new THREE.Vector2();
+const floorPlane = new THREE.Plane();
+const hitWorld = new THREE.Vector3();
+let pointerActive = false;
+let cursorAmt = 0;
+
+window.addEventListener('pointermove', (e) => {
+  if (e.pointerType !== 'mouse') return;
+  pointerNdc.set((e.clientX / window.innerWidth) * 2 - 1, -(e.clientY / window.innerHeight) * 2 + 1);
+  pointerActive = true;
+});
+document.addEventListener('mouseleave', () => { pointerActive = false; });
+
+function updateCursorGlow(dt, floorAmt) {
+  let target = 0;
+  if (pointerActive && !reduceMotion && floorAmt > 0.05) {
+    // Плоскость пола в мировых координатах (сцена не наклонена, нормаль — вверх)
+    floor.updateMatrixWorld();
+    floorPlane.setFromNormalAndCoplanarPoint(new THREE.Vector3(0, 1, 0), new THREE.Vector3().setFromMatrixPosition(floor.matrixWorld));
+    raycaster.setFromCamera(pointerNdc, camera);
+    if (raycaster.ray.intersectPlane(floorPlane, hitWorld)) {
+      const local = stage.worldToLocal(hitWorld.clone());
+      const r = Math.hypot(local.x, local.z);
+      if (r < 2.6) {
+        target = floorAmt * (1 - Math.max(0, (r - 1.6) / 1.0));
+        cursorOrb.position.set(local.x, FLOOR_Y + 0.1, local.z);
+        cursorPool.position.set(local.x, FLOOR_Y + 0.006, local.z);
+        cursorLight.position.set(local.x, FLOOR_Y + 0.35, local.z);
+      }
+    }
+  }
+  cursorAmt += (target - cursorAmt) * Math.min(1, dt * 8);
+  const on = cursorAmt > 0.01;
+  cursorOrb.visible = cursorPool.visible = on;
+  cursorOrb.material.opacity = cursorAmt;
+  cursorPool.material.opacity = cursorAmt * 0.45;
+  cursorLight.intensity = cursorAmt * 1.6;
+  cursorOrb.material.color.copy(themeAccent);
+  cursorPool.material.color.copy(themeAccent);
+  cursorLight.color.copy(themeAccent);
+}
 
 /* ---------- 3. искры при разборке ---------- */
 
@@ -241,9 +363,10 @@ function loadModel(id, onProgress) {
   if (models[id]) return Promise.resolve(models[id]);
   if (!loading[id]) {
     const m = MODELS[id];
-    const url = `${m.file}?v=4`;
+    const url = `${m.file}?v=5`;
     loading[id] = (id === 'aero' ? loadReal(url, onProgress) : loadGltfModel(id, url, TUNING[id], onProgress))
       .then((model) => {
+        seat(model);
         models[id] = model;
         renderPicker();
         renderCompare();
@@ -259,6 +382,17 @@ function loadModel(id, onProgress) {
 }
 
 const colorsFor = (id) => models[id]?.defaults || {};
+
+// Ставим модель подошвой на пол: модели разной высоты, центр у всех в нуле.
+function seat(model) {
+  model.setExplode(0);
+  model.root.position.set(0, 0, 0);
+  model.root.updateMatrixWorld(true);
+  const box = new THREE.Box3().setFromObject(model.root);
+  model.root.position.y = FLOOR_Y + 0.035 - box.min.y;
+  // Кроссовка отбрасывает тень на постамент в сценах
+  model.root.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+}
 
 // Смена модели: старая разлетается на детали и тает, новая собирается из деталей.
 // swap — дополнительная разборка поверх скролла (0 — собрана, 1 — разобрана).
@@ -500,6 +634,7 @@ function setScene(id, instant = false, save = true) {
     if (instant || reduceMotion) sceneCol[k].copy(c);
     else gsap.to(sceneCol[k], { r: c.r, g: c.g, b: c.b, duration: 0.8, ease: 'power2.out' });
   }
+  scenes.setScene(id, instant);
   renderScenes();
   if (save) saveURL();
 }
@@ -559,7 +694,7 @@ function renderCompare() {
       ['3D-модель', m.credit.author.split(' (')[0]],
     ].map(([k, v]) => `<div class="stat__row"><span>${k}</span><b>${v}</b></div>`).join('');
     card.innerHTML = `<h3>${m.name}</h3><p class="card__price">${m.tagline}</p>${rows}`;
-    const pick = () => { selectModel(id); $('#hero').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' }); };
+    const pick = () => { selectModel(id); scrollToEl($('#hero')); };
     card.addEventListener('click', pick);
     card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
     grid.appendChild(card);
@@ -618,6 +753,84 @@ function readURL() {
   if (m && MODELS[m]) state.model = m;
   const sc = p.get('sc');
   if (sc && SCENES[sc]) state.scene = sc;
+}
+
+/* ---------- подписи деталей ---------- */
+
+const calloutsEl = $('#callouts');
+const calloutSvg = $('#calloutLines');
+const SVGNS = 'http://www.w3.org/2000/svg';
+const callouts = ['top', 'upper', 'inner', 'sole'].map((type) => {
+  const label = document.createElement('div');
+  label.className = 'callout';
+  label.style.opacity = '0';
+  calloutsEl.appendChild(label);
+  const line = document.createElementNS(SVGNS, 'line');
+  const dot = document.createElementNS(SVGNS, 'circle');
+  dot.setAttribute('r', '3.5');
+  line.style.opacity = dot.style.opacity = '0';
+  calloutSvg.append(line, dot);
+  return { type, label, line, dot, shown: 0, text: '' };
+});
+const anchorV = new THREE.Vector3();
+const centerV = new THREE.Vector3();
+
+// Подпись появляется, когда её деталь отъехала, и уводится линией от центра модели
+function updateCallouts(scrollEx) {
+  const model = current;
+  const W = window.innerWidth;
+  const H = window.innerHeight;
+  const anchors = model?.anchors || [];
+  const labels = MODELS[state.model]?.labels || {};
+  centerV.setFromMatrixPosition(holder.matrixWorld).project(camera);
+  const cx = ((centerV.x + 1) / 2) * W;
+  const cy = ((1 - centerV.y) / 2) * H;
+  const dist = isMobile() ? 50 : 105;
+
+  for (const c of callouts) {
+    const a = anchors.find((x) => x.type === c.type);
+    let target = 0;
+    if (a && labels[c.type] && (model.swap || 0) < 0.01) {
+      const x = scrollEx * 4 - a.step;
+      target = Math.min(1, Math.max(0, (x - 0.35) / 0.4)) * rig.explodeMix * rig.opacity;
+    }
+    c.shown += (target - c.shown) * 0.2;
+    if (c.shown < 0.01) {
+      if (c.label.style.opacity !== '0') c.label.style.opacity = c.line.style.opacity = c.dot.style.opacity = '0';
+      continue;
+    }
+    anchorV.copy(a.center);
+    a.obj.localToWorld(anchorV);
+    anchorV.project(camera);
+    const px = ((anchorV.x + 1) / 2) * W;
+    const py = ((1 - anchorV.y) / 2) * H;
+    let dx = px - cx;
+    let dy = py - cy;
+    const len = Math.hypot(dx, dy);
+    if (len < 6) { dx = -1; dy = 0; } else { dx /= len; dy /= len; }
+
+    const text = labels[c.type];
+    if (c.text !== text) { c.label.textContent = text; c.text = text; }
+    const lw = c.label.offsetWidth;
+    const lh = c.label.offsetHeight;
+    const lx = px + dx * dist;
+    const ly = py + dy * dist * 0.75;
+    let bx = dx < 0 ? lx - lw : lx;
+    let by = ly - lh / 2;
+    bx = Math.min(W - lw - 8, Math.max(8, bx));
+    by = Math.min(H - lh - 8, Math.max(64, by));
+    c.label.style.transform = `translate(${bx.toFixed(1)}px, ${by.toFixed(1)}px)`;
+    const o = c.shown.toFixed(3);
+    c.label.style.opacity = c.line.style.opacity = c.dot.style.opacity = o;
+    const ex = dx < 0 ? bx + lw : bx;
+    const ey = by + lh / 2;
+    c.line.setAttribute('x1', px.toFixed(1));
+    c.line.setAttribute('y1', py.toFixed(1));
+    c.line.setAttribute('x2', ex.toFixed(1));
+    c.line.setAttribute('y2', ey.toFixed(1));
+    c.dot.setAttribute('cx', px.toFixed(1));
+    c.dot.setAttribute('cy', py.toFixed(1));
+  }
 }
 
 /* ---------- resize and loop ---------- */
@@ -681,7 +894,8 @@ function frame() {
   follow.y += (follow.ty - follow.y) * kf;
   const amt = reduceMotion ? 0 : 1 - 0.85 * rig.zoomMix;
   holder.rotation.y = angleLerp(spin, rig.lockAngle, rig.lockMix) + follow.x * 0.45 * amt;
-  holder.rotation.x = 0.12 + follow.y * 0.18 * amt;
+  // На постаменте и у пола наклон меньше, чтобы носок не уходил в поверхность
+  holder.rotation.x = 0.05 + follow.y * 0.12 * amt * (1 - rig.sceneMix * 0.8);
 
   // Разборка: скролл для текущей модели плюс swap при смене моделей
   const scrollEx = rig.explode * rig.explodeMix;
@@ -708,6 +922,7 @@ function frame() {
   floor.visible = floorAmt > 0.01;
   contactShadow.material.opacity = floorAmt;
   contactShadow.visible = floorAmt > 0.01;
+  updateCursorGlow(dt, floorAmt);
 
   if (Math.abs(rig.opacity - lastOpacity) > 0.002) {
     canvas.style.opacity = rig.opacity.toFixed(3);
@@ -735,11 +950,11 @@ function frame() {
   key.color.copy(white).lerp(sceneCol.key, sm);
   rim.color.copy(white).lerp(themeRim, 0.45).lerp(sceneCol.rim, sm);
   fill.color.copy(white).lerp(sceneCol.fill, sm);
-  rim.intensity = 1 + sm * 1.6;
-  fill.intensity = 0.5 + sm * 0.6;
-  pedestal.material.opacity = sm;
-  pedestal.visible = sm > 0.01;
-  pedestal.material.color.copy(sceneCol.pedestal);
+  // Свой свет у каждой сцены: общий свет приглушаем, чтобы он не забивал её
+  const { wc, wg, wt } = scenes.update(sm, performance.now() / 1000);
+  key.intensity = 2 - wc * 1.2 - wg * 1.5 - wt * 1.1;
+  rim.intensity = 1 + sm * 1.2;
+  fill.intensity = 0.5 - wg * 0.35 - wt * 0.2;
 
   // Камера: от общего плана к крупному
   camPos.copy(stage.position).add(closeOffset);
@@ -748,6 +963,7 @@ function frame() {
   camera.lookAt(look.lerp(lookBase, 1 - z));
 
   renderer.render(scene, camera);
+  updateCallouts(scrollEx);
 }
 
 /* ---------- start ---------- */

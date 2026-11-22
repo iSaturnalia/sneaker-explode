@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { TARGET_LENGTH, makeExplode } from './common.js?v=4';
+import { TARGET_LENGTH, makeExplode } from './common.js?v=5';
 
 // Реальная модель (Shopify, CC-BY 4.0). В файле один меш, но детали внутри
 // не соединены между собой: делим его на «острова» и раскладываем.
@@ -131,6 +131,7 @@ export async function loadReal(url, onProgress) {
   const inner = new THREE.Group();
   root.add(inner);
   const parts = [];
+  const anchors = {};
 
   for (const isl of islands) {
     const slot = isl.type === 'lace' ? 'laces' : isl.type === 'sole' ? 'sole' : 'main';
@@ -139,6 +140,10 @@ export async function loadReal(url, onProgress) {
     inner.add(mesh);
     const p = plan(isl);
     parts.push({ obj: mesh, base: new THREE.Vector3(), offset: p.offset, step: p.step });
+    const aType = { lace: 'top', upper: 'upper', lining: 'inner', sole: 'sole' }[isl.type];
+    if (aType && (!anchors[aType] || anchors[aType].tris < isl.tris)) {
+      anchors[aType] = { obj: mesh, center: isl.center.clone(), type: aType, step: p.step, tris: isl.tris };
+    }
   }
 
   let current = null;
@@ -180,6 +185,7 @@ export async function loadReal(url, onProgress) {
     defaults: { variant: variantNames[0], laces: '#ffffff', sole: '#ffffff' },
     slots: ['laces', 'sole'],
     partsCount: islands.length,
+    anchors: Object.values(anchors),
     applyColors(colors) {
       if (colors.variant && colors.variant !== current) setVariant(colors.variant);
       for (const slot of ['laces', 'sole']) {

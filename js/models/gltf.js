@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { TARGET_LENGTH, makeExplode } from './common.js?v=4';
+import { TARGET_LENGTH, makeExplode } from './common.js?v=5';
 
 // Универсальная загрузка модели со Sketchfab: берём все меши, переводим в общие
 // координаты, делим каждый меш на несвязанные «острова» и раскладываем их
@@ -198,6 +198,7 @@ export async function loadGltfModel(id, url, cfg = {}, onProgress) {
   const UP = new THREE.Vector3(0, 0.38, -0.62);
   const group = new THREE.Group();
   const explodeParts = [];
+  const anchors = {};
 
   for (const p of big) {
     const obj = new THREE.Group();
@@ -219,6 +220,10 @@ export async function loadGltfModel(id, url, cfg = {}, onProgress) {
       }
     }
     explodeParts.push({ obj, base: new THREE.Vector3(), offset: off, step });
+    // Якорь подписи: самая крупная деталь каждого слоя
+    if (!anchors[p.type] || anchors[p.type].tris < p.tris) {
+      anchors[p.type] = { obj, center: p.center.clone(), type: p.type, step, tris: p.tris };
+    }
   }
 
   const root = new THREE.Group();
@@ -234,6 +239,7 @@ export async function loadGltfModel(id, url, cfg = {}, onProgress) {
     defaults: {},
     slots: [],
     partsCount: big.length,
+    anchors: Object.values(anchors),
     stats: { parts: big.length, islands: parts.length, tris: totalTris, counts },
     applyColors() {},
   };
