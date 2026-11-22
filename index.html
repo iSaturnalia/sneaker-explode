@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ORBIT — кроссовки в 3D</title>
   <meta name="description" content="Витрина кроссовок в 3D: четыре модели, разбор по слоям, сравнение, материал крупным планом, сцены, подбор размера и корзина.">
+  <meta name="theme-color" content="#071226">
+  <meta property="og:locale" content="ru_RU">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="ORBIT — кроссовки в 3D">
+  <meta property="og:description" content="Витрина кроссовок: модели разбираются по скроллу на детали, у каждой своя палитра. three.js и GSAP.">
+  <meta property="og:image" content="https://isaturnalia.github.io/sneaker-explode/og.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:url" content="https://isaturnalia.github.io/sneaker-explode/">
+  <meta name="twitter:card" content="summary_large_image">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
@@ -19,6 +29,14 @@
   </script>
 </head>
 <body>
+  <div class="backdrop" id="backdrop" aria-hidden="true">
+    <span class="blob b1"></span>
+    <span class="blob b2"></span>
+    <span class="blob b3"></span>
+  </div>
+  <div class="marquee" id="marquee" aria-hidden="true">
+    <div class="marquee__track" id="marqueeTrack"></div>
+  </div>
   <canvas id="canvas" aria-hidden="true"></canvas>
 
   <div class="loader" id="loader">
@@ -44,6 +62,7 @@
         <p class="eyebrow">Коллекция 2026</p>
         <h1 id="heroName">Orbit Aero</h1>
         <p class="lead" id="heroTagline">Беговая, на каждый день</p>
+        <button type="button" class="tilt-btn" id="tiltBtn" hidden>Крутить наклоном телефона</button>
       </div>
       <div class="picker" role="tablist" aria-label="Модель" id="picker"></div>
     </section>
@@ -124,7 +143,7 @@
 
   <footer class="foot">
     <p>Демо для портфолио. Магазин не настоящий, заказ никуда не отправляется.</p>
-    <p>3D-модель Orbit Aero: <a href="https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/MaterialsVariantsShoe" target="_blank" rel="noopener">Materials Variants Shoe</a>, © 2021 Shopify, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Модель разделена на детали в коде. Остальные модели построены процедурно.</p>
+    <p>3D-модель Orbit Aero: <a href="https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/MaterialsVariantsShoe" target="_blank" rel="noopener">Materials Variants Shoe</a>, © 2021 Shopify, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Текстуры уменьшены, модель разделена на детали в коде. Остальные модели построены процедурно.</p>
   </footer>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>

@@ -67,3 +67,11 @@ export const SCENES = {
 };
 
 export const BASE_BG = '#0f0f11';
+
+// Палитра каждой модели: фон, три пятна света, акцент и цвет текста на акценте.
+export const THEMES = {
+  aero: { bg: '#071226', glow: ['#1f6fff', '#00c2ff', '#7a5cff'], accent: '#4da3ff', accentInk: '#06101f' },
+  court: { bg: '#1a0c06', glow: ['#ff5a1f', '#ffb347', '#ff2d55'], accent: '#ff5a1f', accentInk: '#ffffff' },
+  skate: { bg: '#0d0d0d', glow: ['#d4ff3a', '#f4f1ea', '#6b6b6b'], accent: '#d4ff3a', accentInk: '#0d0d0d' },
+  trail: { bg: '#08170f', glow: ['#3ddc84', '#c6e36b', '#1f8a70'], accent: '#7ee081', accentInk: '#06140c' },
+};
