@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { TARGET_LENGTH, makeExplode } from './common.js';
+import { TARGET_LENGTH, makeExplode } from './common.js?v=4';
 
 // Реальная модель (Shopify, CC-BY 4.0). В файле один меш, но детали внутри
 // не соединены между собой: делим его на «острова» и раскладываем.

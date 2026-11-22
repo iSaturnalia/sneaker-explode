@@ -202,9 +202,9 @@ h2 { margin: 0 0 12px; font-size: clamp(26px, 3.4vw, 40px); line-height: 1.05; }
 .hero__text { margin-top: 8vh; max-width: 560px; }
 .picker {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 10px;
-  max-width: 900px;
+  max-width: 1100px;
 }
 .pick {
   font: inherit;
@@ -269,11 +269,11 @@ h2 { margin: 0 0 12px; font-size: clamp(26px, 3.4vw, 40px); line-height: 1.05; }
 
 /* 3. compare */
 .compare__grid {
-  max-width: 1100px;
+  max-width: 1200px;
   width: 100%;
   margin: 0 auto;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 .card {
@@ -409,17 +409,33 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   background: var(--bg);
 }
 .foot p { margin: 0 0 6px; max-width: 760px; }
+.credits { margin: 6px 0 0; padding-left: 18px; }
+.credits li { margin-bottom: 4px; }
+.pick__tag { margin: 0 0 4px; text-transform: uppercase; letter-spacing: .08em; font-size: 11px; }
+.card .stat__row { margin-bottom: 8px; }
 
 /* ---------- phone ---------- */
 @media (max-width: 760px) {
-  .marquee { top: 44%; }
+  .marquee { top: 58%; }
   .nav { display: none; }
   .top { padding: 14px 16px; }
   .block { padding: 80px 16px 32px; }
   .hero__text { margin-top: 0; }
   h1 { font-size: 48px; }
   .lead { font-size: 16px; }
-  .picker { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  /* Карточки моделей — горизонтальная лента, чтобы кроссовке хватало места */
+  .picker {
+    display: flex;
+    gap: 8px;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    scroll-padding-left: 16px;
+    margin: 0 -16px;
+    padding: 0 16px 4px;
+    scrollbar-width: none;
+  }
+  .picker::-webkit-scrollbar { display: none; }
+  .pick { flex: 0 0 42%; scroll-snap-align: start; padding: 12px; }
 
   .chapters { left: 16px; right: 16px; top: auto; bottom: 72px; transform: none; width: auto; }
   .chapters li { background: var(--panel); backdrop-filter: blur(10px); padding: 14px; border-radius: 14px; }

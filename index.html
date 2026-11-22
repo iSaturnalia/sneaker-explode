@@ -4,12 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>ORBIT — кроссовки в 3D</title>
-  <meta name="description" content="Витрина кроссовок в 3D: четыре модели, разбор по слоям, сравнение, материал крупным планом, сцены, подбор размера и корзина.">
+  <meta name="description" content="3D-витрина кроссовок: Air Jordan 1, New Balance 997, Salomon X Ultra 04, Pegasus 36. Разбор по слоям, паспорт моделей, материал крупным планом и сцены.">
   <meta name="theme-color" content="#071226">
   <meta property="og:locale" content="ru_RU">
   <meta property="og:type" content="website">
   <meta property="og:title" content="ORBIT — кроссовки в 3D">
-  <meta property="og:description" content="Витрина кроссовок: модели разбираются по скроллу на детали, у каждой своя палитра. three.js и GSAP.">
+  <meta property="og:description" content="3D-витрина культовых кроссовок: модели разбираются по скроллу на детали, у каждой своя палитра. three.js и GSAP.">
   <meta property="og:image" content="https://isaturnalia.github.io/sneaker-explode/og.png">
   <meta property="og:image:width" content="1200">
   <meta property="og:image:height" content="630">
@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css">
+  <link rel="stylesheet" href="css/style.css?v=4">
   <script type="importmap">
   {
     "imports": {
@@ -48,20 +48,20 @@
     <a class="logo" href="#hero">ORBIT</a>
     <nav class="nav" aria-label="Разделы">
       <a href="#explode">Разбор</a>
-      <a href="#compare">Сравнение</a>
+      <a href="#compare">Паспорт</a>
+      <a href="#closeup">Материал</a>
       <a href="#scenes">Сцены</a>
-      <a href="#size">Размер</a>
     </nav>
-    <a class="top__cart" href="#cart"><span id="topPrice">14 900 ₽</span></a>
+    <span class="top__cart" id="topCount" aria-label="Номер модели">01 / 05</span>
   </header>
 
   <main>
     <!-- 1. Выбор модели -->
     <section class="block hero" id="hero" data-rig="hero">
       <div class="hero__text">
-        <p class="eyebrow">Коллекция 2026</p>
-        <h1 id="heroName">Orbit Aero</h1>
-        <p class="lead" id="heroTagline">Беговая, на каждый день</p>
+        <p class="eyebrow" id="heroBrand">Nike · 1985</p>
+        <h1 id="heroName">Air Jordan 1</h1>
+        <p class="lead" id="heroTagline"></p>
         <button type="button" class="tilt-btn" id="tiltBtn" hidden>Крутить наклоном телефона</button>
       </div>
       <div class="picker" role="tablist" aria-label="Модель" id="picker"></div>
@@ -72,8 +72,8 @@
       <div class="explode__sticky">
         <ol class="chapters" id="chapters">
           <li><span class="num">01</span><div><h2>Шнуровка</h2><p>Шнурки и язычок снимаются первыми. Язычок на подкладке, чтобы не натирало.</p></div></li>
-          <li><span class="num">02</span><div><h2>Верх</h2><p>У каждой модели свой верх: сетка, кожа или замша. Накладки и люверсы держат форму.</p></div></li>
-          <li><span class="num">03</span><div><h2>Стелька</h2><p>Съёмная, из пены с памятью формы. Её можно вынуть и просушить.</p></div></li>
+          <li><span class="num">02</span><div><h2>Верх</h2><p>Кожа, замша или сетка: из верха и накладок складывается узнаваемый силуэт модели.</p></div></li>
+          <li><span class="num">03</span><div><h2>Подкладка</h2><p>Внутренняя часть: подкладка, стелька и задник, на которые опирается стопа.</p></div></li>
           <li><span class="num">04</span><div><h2>Подошва</h2><p>Промежуточная подошва амортизирует шаг, резина снаружи отвечает за сцепление.</p></div></li>
         </ol>
         <div class="explode__progress" aria-hidden="true"><span id="explodeBar"></span></div>
@@ -83,8 +83,8 @@
     <!-- 3. Сравнение -->
     <section class="block compare" id="compare" data-rig="dim">
       <header class="block__head">
-        <p class="eyebrow">Сравнение</p>
-        <h2>Какая пара твоя</h2>
+        <p class="eyebrow">Паспорт</p>
+        <h2>Пять пар в коллекции</h2>
       </header>
       <div class="compare__grid" id="compareGrid"></div>
     </section>
@@ -109,45 +109,16 @@
       </div>
     </section>
 
-    <!-- 7. Размер -->
-    <section class="block size" id="size" data-rig="dim">
-      <header class="block__head">
-        <p class="eyebrow">Размер</p>
-        <h2>Подберём по стопе</h2>
-      </header>
-      <div class="size__wrap">
-        <label class="size__input">
-          <span>Длина стопы, см</span>
-          <input id="footCm" type="number" inputmode="decimal" min="20" max="32" step="0.5" placeholder="26.5">
-        </label>
-        <p class="size__result" id="sizeResult">Встаньте пяткой к стене и измерьте до кончика самого длинного пальца.</p>
-        <div class="size__grid" id="sizeGrid" role="group" aria-label="Размер EU"></div>
-      </div>
-    </section>
-
-    <!-- 8. Корзина -->
-    <section class="block cart" id="cart" data-rig="cart">
-      <div class="panel">
-        <p class="eyebrow">Корзина</p>
-        <h2 id="cartName">Orbit Aero</h2>
-        <dl class="cart__list">
-          <div><dt>Цвет</dt><dd id="cartColor">—</dd></div>
-          <div><dt>Размер</dt><dd id="cartSize">не выбран</dd></div>
-          <div><dt>Цена</dt><dd id="cartPrice">—</dd></div>
-        </dl>
-        <button type="button" class="cta" id="checkout">Оформить заказ</button>
-        <p class="hint" id="cartHint" role="status" aria-live="polite"></p>
-      </div>
-    </section>
   </main>
 
   <footer class="foot">
-    <p>Демо для портфолио. Магазин не настоящий, заказ никуда не отправляется.</p>
-    <p>3D-модель Orbit Aero: <a href="https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/MaterialsVariantsShoe" target="_blank" rel="noopener">Materials Variants Shoe</a>, © 2021 Shopify, <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>. Текстуры уменьшены, модель разделена на детали в коде. Остальные модели построены процедурно.</p>
+    <p>Фанатская 3D-витрина для портфолио. Это не магазин: здесь ничего не продаётся. Названия моделей и логотипы принадлежат их правообладателям.</p>
+    <p>3D-модели (лицензия <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>, текстуры уменьшены, модели разделены на детали в коде):</p>
+    <ul class="credits" id="credits"></ul>
   </footer>
 
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
-  <script type="module" src="js/main.js"></script>
+  <script type="module" src="js/main.js?v=4"></script>
 </body>
 </html>

@@ -1,23 +1,35 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
-import { buildProcedural } from './models/procedural.js';
-import { loadReal } from './models/real.js';
-import { MODELS, MODEL_ORDER, STAT_LABELS, SIZES, SCENES, THEMES } from './data.js';
+import { loadGltfModel } from './models/gltf.js?v=4';
+import { loadReal } from './models/real.js?v=4';
+import { MODELS, MODEL_ORDER, SCENES, THEMES } from './data.js?v=4';
 
 gsap.registerPlugin(ScrollTrigger);
+
+/* GitHub Pages разрешает браузеру держать страницу ~10 минут, телефоны держат и дольше.
+   Сверяем свою метку ?v= с копией на сервере и один раз перезагружаемся, если там новее.
+   При новом релизе метку ?v= нужно поднять во всех файлах сразу. */
+(async () => {
+  try {
+    const mine = (document.querySelector('script[src*="main.js"]')?.src.match(/[?&]v=(\d+)/) || [])[1];
+    const html = await (await fetch(location.pathname, { cache: 'no-store' })).text();
+    const live = (html.match(/main\.js\?v=(\d+)/) || [])[1];
+    if (mine && live && Number(live) > Number(mine) && sessionStorage.getItem('orbit-reloaded') !== live) {
+      sessionStorage.setItem('orbit-reloaded', live);
+      location.reload();
+    }
+  } catch { /* нет сети или хранилища: оставляем страницу как есть */ }
+})();
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 const isMobile = () => window.innerWidth < 760;
 const $ = (s) => document.querySelector(s);
-const rub = (n) => `${n.toLocaleString('ru-RU')} ₽`;
 
 /* ---------- state ---------- */
 
 const state = {
-  model: 'aero',
-  colors: {},      // заводская расцветка каждой модели
-  size: null,      // EU
+  model: MODEL_ORDER[0],
   scene: 'city',
 };
 
@@ -210,14 +222,43 @@ function updateSparks(dt) {
 
 /* ---------- models ---------- */
 
+// Модели грузятся по мере надобности: сначала открытая, остальные в фоне.
 const models = {};
-for (const id of ['court', 'skate', 'trail']) models[id] = buildProcedural(id);
+const loading = {};
 let current = null;
 
-function colorsFor(id) {
-  if (!state.colors[id]) state.colors[id] = { ...models[id].defaults };
-  return state.colors[id];
+// Подстройка под конкретный файл: что выбросить, как повернуть.
+// Заполняется после осмотра скачанных моделей.
+const TUNING = {
+  jordan1: { rotate: [0, Math.PI / 2, 0] },
+  nb997: { rotate: [0, Math.PI / 2, 0] },
+  // Скан из одного куска: выравниваем и режем по высоте на слои
+  xultra: { autoAlign: true, slice: [[0.1, 'sole'], [0.27, 'sole'], [0.8, 'upper'], [1, 'top']] },
+  pegasus36: { rotate: [0, Math.PI / 2, 0] },
+};
+
+function loadModel(id, onProgress) {
+  if (models[id]) return Promise.resolve(models[id]);
+  if (!loading[id]) {
+    const m = MODELS[id];
+    const url = `${m.file}?v=4`;
+    loading[id] = (id === 'aero' ? loadReal(url, onProgress) : loadGltfModel(id, url, TUNING[id], onProgress))
+      .then((model) => {
+        models[id] = model;
+        renderPicker();
+        renderCompare();
+        return model;
+      })
+      .catch((err) => {
+        console.warn(`Модель ${id} не загрузилась`, err);
+        loading[id] = null;
+        return null;
+      });
+  }
+  return loading[id];
 }
+
+const colorsFor = (id) => models[id]?.defaults || {};
 
 // Смена модели: старая разлетается на детали и тает, новая собирается из деталей.
 // swap — дополнительная разборка поверх скролла (0 — собрана, 1 — разобрана).
@@ -381,7 +422,7 @@ function preset(name) {
   const m = isMobile();
   const base = { explodeMix: 0, zoomMix: 0, lockMix: 0, sceneMix: 0, opacity: 1 };
   switch (name) {
-    case 'hero': return { ...base, x: m ? 0 : 0.95, y: m ? 0.55 : -0.1, scale: m ? 0.8 : 1.05 };
+    case 'hero': return { ...base, x: m ? 0 : 0.95, y: m ? -0.45 : -0.1, scale: m ? 0.92 : 1.05 };
     case 'explode': return { ...base, x: m ? 0 : -0.8, y: m ? 0.5 : 0, scale: m ? 0.72 : 0.95, explodeMix: 1, lockMix: 1, lockAngle: -0.55 };
     case 'dim': return { ...base, x: 0, y: m ? 0.6 : 0.2, scale: 0.8, opacity: 0.16 };
     case 'closeup': return { ...base, x: 0, y: m ? 0.35 : 0, scale: 1, zoomMix: 1, lockMix: 1, lockAngle: 0 };
@@ -465,13 +506,16 @@ function setScene(id, instant = false, save = true) {
 
 /* ---------- UI: 1. выбор модели ---------- */
 
-function selectModel(id) {
-  if (!models[id]) return;
+const pad = (n) => String(n).padStart(2, '0');
+
+async function selectModel(id) {
+  if (!MODELS[id] || id === state.model) return;
   state.model = id;
-  showModel(id);
   applyTheme(id);
   renderAll();
   saveURL();
+  const model = await loadModel(id);
+  if (model && state.model === id) showModel(id);
 }
 
 function renderPicker() {
@@ -484,59 +528,49 @@ function renderPicker() {
     b.className = 'pick';
     b.setAttribute('role', 'tab');
     b.setAttribute('aria-selected', String(id === state.model));
-    b.disabled = !models[id];
-    b.innerHTML = `<span class="pick__name">${m.name}</span><span class="pick__tag">${m.tagline}</span><span class="pick__price">${rub(m.price)}</span>`;
+    b.innerHTML = `<span class="pick__tag">${m.brand}</span><span class="pick__name">${m.name}</span><span class="pick__price">${m.year}</span>`;
     b.addEventListener('click', () => selectModel(id));
     el.appendChild(b);
   }
-  $('#heroName').textContent = MODELS[state.model].name;
-  $('#heroTagline').textContent = MODELS[state.model].tagline;
+  const m = MODELS[state.model];
+  $('#heroBrand').textContent = `${m.brand} · ${m.year}`;
+  $('#heroName').textContent = m.name;
+  $('#heroTagline').textContent = m.tagline;
+  $('#topCount').textContent = `${pad(MODEL_ORDER.indexOf(state.model) + 1)} / ${pad(MODEL_ORDER.length)}`;
 }
 
-/* ---------- UI: 3. сравнение ---------- */
+/* ---------- UI: 3. паспорт моделей ---------- */
 
 function renderCompare() {
   const grid = $('#compareGrid');
   grid.innerHTML = '';
   for (const id of MODEL_ORDER) {
     const m = MODELS[id];
+    const st = models[id]?.partsCount;
     const card = document.createElement('article');
     card.className = `card${id === state.model ? ' is-current' : ''}`;
     card.tabIndex = 0;
-    card.setAttribute('aria-label', `${m.name}, выбрать`);
-    const stats = Object.entries(STAT_LABELS).map(([k, s]) => {
-      const v = m.stats[k];
-      return `<div class="stat"><div class="stat__row"><span>${s.label}</span><b>${v} ${s.unit}</b></div>
-        <div class="stat__bar"><span style="--w:${Math.round((v / s.max) * 100)}%"></span></div></div>`;
-    }).join('');
-    card.innerHTML = `<h3>${m.name}</h3><p class="card__price">${rub(m.price)}</p>${stats}`;
-    const pick = () => selectModel(id);
+    card.setAttribute('aria-label', `${m.brand} ${m.name}, показать`);
+    const rows = [
+      ['Бренд', m.brand],
+      ['Год', m.year],
+      ['Тип', m.category],
+      ['Деталей в 3D', st ?? '…'],
+      ['3D-модель', m.credit.author.split(' (')[0]],
+    ].map(([k, v]) => `<div class="stat__row"><span>${k}</span><b>${v}</b></div>`).join('');
+    card.innerHTML = `<h3>${m.name}</h3><p class="card__price">${m.tagline}</p>${rows}`;
+    const pick = () => { selectModel(id); $('#hero').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' }); };
     card.addEventListener('click', pick);
     card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); pick(); } });
     grid.appendChild(card);
   }
 }
 
-ScrollTrigger.create({
-  trigger: '#compare',
-  start: 'top 60%',
-  once: true,
-  onEnter: () => $('#compare').classList.add('is-in'),
-});
-
-/* ---------- расцветка в корзине ---------- */
-
-// Витрина без редактора: каждая модель в своей заводской расцветке.
-const COLOR_NAMES = {
-  '#ff5a1f': 'оранжевый', '#f4f1ea': 'молочный', '#1c1c1e': 'чёрный',
-  '#9fae97': 'шалфей', '#e9c46a': 'горчичный',
-};
-
-function colorSummary() {
-  const c = colorsFor(state.model);
-  if (models[state.model].variants) return c.variant[0].toUpperCase() + c.variant.slice(1);
-  const n = (hex) => COLOR_NAMES[hex] || hex;
-  return `верх ${n(c.upper)}, подошва ${n(c.sole)}`;
+function renderCredits() {
+  $('#credits').innerHTML = MODEL_ORDER.map((id) => {
+    const c = MODELS[id].credit;
+    return `<li><a href="${c.url}" target="_blank" rel="noopener">${c.title}</a> — ${c.author}</li>`;
+  }).join('');
 }
 
 /* ---------- UI: 5. материал ---------- */
@@ -562,81 +596,18 @@ function renderScenes() {
   }
 }
 
-/* ---------- UI: 7. размер ---------- */
-
-function renderSizes() {
-  const grid = $('#sizeGrid');
-  grid.innerHTML = '';
-  for (const s of SIZES) {
-    const b = document.createElement('button');
-    b.type = 'button';
-    b.className = 'size__btn';
-    b.setAttribute('aria-pressed', String(s.eu === state.size));
-    b.setAttribute('aria-label', `EU ${s.eu}, стелька ${s.cm} см`);
-    b.innerHTML = `${s.eu}<small>${s.cm} см</small>`;
-    b.addEventListener('click', () => selectSize(s.eu));
-    grid.appendChild(b);
-  }
-}
-
-function sizeText(s) {
-  return `Ваш размер: <b>EU ${s.eu}</b> · US ${s.us} · UK ${s.uk}. Длина стельки ${s.cm} см.`;
-}
-
-function selectSize(eu) {
-  state.size = eu;
-  const s = SIZES.find((x) => x.eu === eu);
-  $('#sizeResult').innerHTML = sizeText(s);
-  renderSizes();
-  renderCart();
-  saveURL();
-}
-
-$('#footCm').addEventListener('input', (e) => {
-  const cm = parseFloat(String(e.target.value).replace(',', '.'));
-  const res = $('#sizeResult');
-  if (!cm || cm < 20) { res.textContent = 'Введите длину стопы от 20 до 32 см.'; return; }
-  const s = SIZES.find((x) => x.cm >= cm);
-  if (!s) { res.textContent = 'Больше 46-го размера у нас пока нет.'; return; }
-  selectSize(s.eu);
-});
-
-/* ---------- UI: 8. корзина ---------- */
-
-function renderCart() {
-  const m = MODELS[state.model];
-  $('#cartName').textContent = m.name;
-  $('#cartColor').textContent = colorSummary();
-  $('#cartSize').textContent = state.size ? `EU ${state.size}` : 'не выбран';
-  $('#cartPrice').textContent = rub(m.price);
-  $('#topPrice').textContent = rub(m.price);
-}
-
-$('#checkout').addEventListener('click', () => {
-  const hint = $('#cartHint');
-  if (!state.size) {
-    hint.textContent = 'Сначала выберите размер.';
-    $('#size').scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
-    return;
-  }
-  hint.textContent = 'Готово. Это демо, заказ никуда не отправлен.';
-});
-
 function renderAll() {
   renderPicker();
   renderCompare();
   renderMaterial();
   renderScenes();
-  renderSizes();
-  renderCart();
 }
 
-/* ---------- URL: модель, размер и сцена в ссылке ---------- */
+/* ---------- URL: модель и сцена в ссылке ---------- */
 
 function saveURL() {
   const p = new URLSearchParams();
   p.set('m', state.model);
-  if (state.size) p.set('sz', state.size);
   if (state.scene !== 'city') p.set('sc', state.scene);
   history.replaceState(null, '', `?${p}${location.hash}`);
 }
@@ -645,8 +616,6 @@ function readURL() {
   const p = new URLSearchParams(location.search);
   const m = p.get('m');
   if (m && MODELS[m]) state.model = m;
-  const sz = Number(p.get('sz'));
-  if (SIZES.some((s) => s.eu === sz)) state.size = sz;
   const sc = p.get('sc');
   if (sc && SCENES[sc]) state.scene = sc;
 }
@@ -794,21 +763,23 @@ function start() {
   applyTheme(state.model, true);
   showModel(state.model, true);
   setupTilt();
-  if (state.size) $('#sizeResult').innerHTML = sizeText(SIZES.find((s) => s.eu === state.size));
   renderAll();
+  renderCredits();
   saveURL();
   loaderEl.classList.add('is-done');
   renderer.setAnimationLoop(frame);
   ScrollTrigger.refresh();
+  // Остальные модели догружаем в фоне по очереди, чтобы не забить канал
+  MODEL_ORDER.filter((id) => id !== state.model).reduce((p, id) => p.then(() => loadModel(id)), Promise.resolve());
 }
 
-loadReal('assets/aero.glb', (p) => { loaderBar.style.width = `${Math.round(p * 100)}%`; })
-  .then((m) => {
-    models.aero = m;
-    window.__parts = m.partsCount;
-  })
-  .catch((err) => {
-    console.error('Не загрузилась модель Orbit Aero', err);
-    if (state.model === 'aero') state.model = 'court';
+loadModel(state.model, (p) => { loaderBar.style.width = `${Math.round(p * 100)}%`; })
+  .then(async (m) => {
+    // Если файла нет (ещё не скачан), открываем первую модель, которая загрузится
+    if (!m) {
+      for (const id of MODEL_ORDER) {
+        if (await loadModel(id)) { state.model = id; break; }
+      }
+    }
   })
   .finally(start);
