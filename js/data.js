@@ -76,3 +76,68 @@ export const THEMES = {
   pegasus36: { bg: '#0a0f1f', glow: ['#ff5aa8', '#ffd23f', '#3b5bff'], accent: '#ffd23f', accentInk: '#141414' },
   aero: { bg: '#071226', glow: ['#1f6fff', '#00c2ff', '#7a5cff'], accent: '#4da3ff', accentInk: '#06101f' },
 };
+
+/* ---------- английская версия ---------- */
+
+// Язык берём из <html lang>: русская страница в корне, английская — в en/
+export const LANG = document.documentElement.lang === 'en' ? 'en' : 'ru';
+
+const EN_MODELS = {
+  jordan1: {
+    category: 'Basketball',
+    tagline: 'The shoe that started sneaker culture',
+    labels: { top: 'Laces & tongue', upper: 'Leather upper', inner: 'Lining', sole: 'Sole with Air' },
+    material: { title: 'Leather & wings', text: 'Smooth leather, a perforated toe and the Wings logo on the collar. The silhouette has barely changed since 1985.' },
+    credit: { author: 'DeezVertz (based on work by makoto and samplemem)' },
+  },
+  nb997: {
+    category: 'Running, lifestyle',
+    tagline: 'A nineties running classic, made in the USA',
+    labels: { top: 'Lacing', upper: 'Suede & mesh', inner: 'Lining', sole: 'ENCAP sole' },
+    material: { title: 'Suede & mesh', text: 'Suede overlays on top of mesh and a layered sole with heel cushioning. Grey became the signature colour.' },
+  },
+  xultra: {
+    category: 'Hiking',
+    tagline: 'Mountain shoes that moved to the city',
+    labels: { top: 'Collar & lacing', upper: 'Upper with chassis', inner: 'Lining', sole: 'Contagrip outsole' },
+    material: { title: 'Chassis & lugs', text: 'Chassis ribs hold the foot on rough trails, deep lugs grip rocks and mud.' },
+  },
+  pegasus36: {
+    category: 'Running',
+    tagline: 'The everyday workhorse for daily runs',
+    labels: { top: 'Lacing', upper: 'Mesh upper', inner: 'Lining', sole: 'Sole with Zoom Air' },
+    material: { title: 'Mesh & Zoom Air', text: 'Light perforated mesh and a Zoom Air unit under the forefoot.' },
+  },
+  aero: {
+    category: 'Sample model',
+    tagline: 'The reference shoe from the Khronos sample set',
+    labels: { top: 'Laces', upper: 'Knit upper', inner: 'Lining', sole: 'Sole' },
+    material: { title: 'Knit upper', text: 'A model from the open glTF sample set: one file holds three colourways — Midnight, Beach and Street.' },
+  },
+};
+
+const EN_SCENES = { city: 'City at night', gym: 'Gym', trail: 'Trail' };
+
+if (LANG === 'en') {
+  for (const [id, over] of Object.entries(EN_MODELS)) {
+    const m = MODELS[id];
+    const { credit, ...rest } = over;
+    Object.assign(m, rest);
+    if (credit) m.credit = { ...m.credit, ...credit };
+  }
+  for (const [id, name] of Object.entries(EN_SCENES)) SCENES[id].name = name;
+}
+
+// Строки интерфейса, которые подставляют скрипты
+export const T = {
+  ru: {
+    tiltDenied: 'Наклон не разрешён',
+    show: 'показать',
+    passport: { brand: 'Бренд', year: 'Год', type: 'Тип', parts: 'Деталей в 3D', author: '3D-модель' },
+  },
+  en: {
+    tiltDenied: 'Tilt not allowed',
+    show: 'show',
+    passport: { brand: 'Brand', year: 'Year', type: 'Type', parts: 'Parts in 3D', author: '3D model' },
+  },
+}[LANG];

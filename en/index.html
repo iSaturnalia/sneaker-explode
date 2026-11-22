@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ORBIT — sneakers in 3D</title>
+  <meta name="description" content="A 3D sneaker showcase: Air Jordan 1, New Balance 997, Salomon X Ultra 04, Pegasus 36. Layer-by-layer teardown, model passports, material close-ups and scenes.">
+  <meta name="theme-color" content="#071226">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="ORBIT — sneakers in 3D">
+  <meta property="og:description" content="A 3D showcase of iconic sneakers: each model comes apart as you scroll, each with its own palette. three.js and GSAP.">
+  <meta property="og:image" content="https://isaturnalia.github.io/sneaker-explode/og-en.png">
+  <meta property="og:image:width" content="1200">
+  <meta property="og:image:height" content="630">
+  <meta property="og:url" content="https://isaturnalia.github.io/sneaker-explode/en/">
+  <meta name="twitter:card" content="summary_large_image">
+  <link rel="alternate" hreflang="ru" href="https://isaturnalia.github.io/sneaker-explode/">
+  <link rel="alternate" hreflang="en" href="https://isaturnalia.github.io/sneaker-explode/en/">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css?v=9">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <div class="backdrop" id="backdrop" aria-hidden="true">
+    <span class="blob b1"></span>
+    <span class="blob b2"></span>
+    <span class="blob b3"></span>
+  </div>
+  <div class="marquee" id="marquee" aria-hidden="true">
+    <div class="marquee__track" id="marqueeTrack"></div>
+  </div>
+  <canvas id="canvas" aria-hidden="true"></canvas>
+  <!-- Part callouts during the teardown: leader lines over the 3D -->
+  <div class="callouts" id="callouts" aria-hidden="true">
+    <svg class="callouts__lines" id="calloutLines"></svg>
+  </div>
+
+  <div class="loader" id="loader">
+    <span class="loader__label">Loading model</span>
+    <span class="loader__bar"><span id="loaderBar"></span></span>
+  </div>
+
+  <header class="top">
+    <a class="logo" href="#hero">ORBIT</a>
+    <nav class="nav" aria-label="Sections">
+      <a href="#explode">Teardown</a>
+      <a href="#compare">Passport</a>
+      <a href="#closeup">Material</a>
+      <a href="#scenes">Scenes</a>
+    </nav>
+    <div class="top__right">
+      <a class="lang" href="../" hreflang="ru" lang="ru" aria-label="Русская версия">RU</a>
+      <span class="top__cart" id="topCount" aria-label="Model number">01 / 05</span>
+    </div>
+  </header>
+
+  <main>
+    <!-- 1. Model picker -->
+    <section class="block hero" id="hero" data-rig="hero">
+      <div class="hero__text">
+        <p class="eyebrow" id="heroBrand">Nike · 1985</p>
+        <h1 id="heroName">Air Jordan 1</h1>
+        <p class="lead" id="heroTagline"></p>
+        <button type="button" class="tilt-btn" id="tiltBtn" hidden>Rotate by tilting your phone</button>
+      </div>
+      <p class="drag-hint" id="dragHint" aria-hidden="true">← Drag to rotate →</p>
+      <!-- data-lenis-prevent-touch: swipes on the strip stay native so it scrolls sideways -->
+      <div class="picker" role="tablist" aria-label="Model" id="picker" data-lenis-prevent-touch></div>
+    </section>
+
+    <!-- 2. Layer teardown -->
+    <section class="block explode" id="explode" data-rig="explode">
+      <div class="explode__sticky">
+        <ol class="chapters" id="chapters">
+          <li><span class="num">01</span><div><h2>Lacing</h2><p>Laces and tongue come off first. The tongue is padded so it never rubs.</p></div></li>
+          <li><span class="num">02</span><div><h2>Upper</h2><p>Leather, suede or mesh: the upper and its overlays make the silhouette you recognise.</p></div></li>
+          <li><span class="num">03</span><div><h2>Lining</h2><p>The inside: lining, insole and heel counter that the foot rests on.</p></div></li>
+          <li><span class="num">04</span><div><h2>Sole</h2><p>The midsole cushions every step, the rubber outsole takes care of grip.</p></div></li>
+        </ol>
+        <div class="explode__progress" aria-hidden="true"><span id="explodeBar"></span></div>
+      </div>
+    </section>
+
+    <!-- 3. Passport -->
+    <section class="block compare" id="compare" data-rig="dim">
+      <header class="block__head">
+        <p class="eyebrow">Passport</p>
+        <h2>Five pairs in the collection</h2>
+      </header>
+      <div class="compare__grid" id="compareGrid"></div>
+    </section>
+
+    <!-- 5. Material close-up -->
+    <section class="block closeup" id="closeup" data-rig="closeup">
+      <div class="closeup__sticky">
+        <div class="closeup__text">
+          <p class="eyebrow">Material</p>
+          <h2 id="materialTitle">Knit upper</h2>
+          <p id="materialText"></p>
+        </div>
+      </div>
+    </section>
+
+    <!-- 6. Scenes -->
+    <section class="block scenes" id="scenes" data-rig="scenes">
+      <div class="panel">
+        <p class="eyebrow">Where to wear</p>
+        <h2>Try a scene</h2>
+        <div class="seg" id="sceneSeg"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <footer class="foot">
+    <p>A fan-made 3D showcase for a portfolio. This is not a store: nothing is sold here. Model names and logos belong to their owners.</p>
+    <p>3D models (licensed <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>, textures downscaled, models split into parts in code):</p>
+    <ul class="credits" id="credits"></ul>
+  </footer>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
+  <script type="module" src="../js/main.js?v=9"></script>
+</body>
+</html>

@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
-import { loadGltfModel } from './models/gltf.js?v=8';
-import { createScenes } from './scenes.js?v=8';
-import { loadReal } from './models/real.js?v=8';
-import { MODELS, MODEL_ORDER, SCENES, THEMES } from './data.js?v=8';
+import { loadGltfModel } from './models/gltf.js?v=9';
+import { createScenes } from './scenes.js?v=9';
+import { loadReal } from './models/real.js?v=9';
+import { MODELS, MODEL_ORDER, SCENES, THEMES, T } from './data.js?v=9';
+
+// Корень сайта: английская версия лежит в en/, а модели — в корне
+const ROOT = new URL('../', import.meta.url);
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -67,6 +70,12 @@ function scrollToEl(el) {
   if (lenis) lenis.scrollTo(el, { duration: 1.6, easing: (t) => 1 - Math.pow(1 - t, 4) });
   else el.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth' });
 }
+
+// Переключатель языка уносит с собой выбранную модель и сцену
+document.querySelector('.lang')?.addEventListener('click', (e) => {
+  e.preventDefault();
+  location.href = e.currentTarget.getAttribute('href') + location.search;
+});
 
 // Ссылки меню тоже едут плавно
 document.querySelectorAll('a[href^="#"]').forEach((a) => {
@@ -385,7 +394,7 @@ function loadModel(id, onProgress) {
   if (models[id]) return Promise.resolve(models[id]);
   if (!loading[id]) {
     const m = MODELS[id];
-    const url = `${m.file}?v=8`;
+    const url = new URL(`${m.file}?v=9`, ROOT).href;
     loading[id] = (id === 'aero' ? loadReal(url, onProgress) : loadGltfModel(id, url, TUNING[id], onProgress))
       .then((model) => {
         seat(model);
@@ -573,7 +582,7 @@ function setupTilt() {
           window.addEventListener('deviceorientation', onOrient);
           btn.hidden = true;
         } else {
-          btn.textContent = 'Наклон не разрешён';
+          btn.textContent = T.tiltDenied;
           btn.disabled = true;
         }
       } catch {
@@ -771,13 +780,13 @@ function renderCompare() {
     const card = document.createElement('article');
     card.className = `card${id === state.model ? ' is-current' : ''}`;
     card.tabIndex = 0;
-    card.setAttribute('aria-label', `${m.brand} ${m.name}, показать`);
+    card.setAttribute('aria-label', `${m.brand} ${m.name}, ${T.show}`);
     const rows = [
-      ['Бренд', m.brand],
-      ['Год', m.year],
-      ['Тип', m.category],
-      ['Деталей в 3D', st ?? '…'],
-      ['3D-модель', m.credit.author.split(' (')[0]],
+      [T.passport.brand, m.brand],
+      [T.passport.year, m.year],
+      [T.passport.type, m.category],
+      [T.passport.parts, st ?? '…'],
+      [T.passport.author, m.credit.author.split(' (')[0]],
     ].map(([k, v]) => `<div class="stat__row"><span>${k}</span><b>${v}</b></div>`).join('');
     card.innerHTML = `<h3>${m.name}</h3><p class="card__price">${m.tagline}</p>${rows}`;
     const pick = () => { selectModel(id); scrollToEl($('#hero')); };

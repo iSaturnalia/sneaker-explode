@@ -579,3 +579,19 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
 @media (max-width: 760px) and (pointer: coarse) {
   .drag-hint { visibility: visible; }
 }
+
+/* ---------- переключатель языка ---------- */
+.top__right { display: flex; align-items: center; gap: 10px; }
+.lang {
+  font-family: "Unbounded", sans-serif;
+  font-weight: 800;
+  font-size: 12px;
+  letter-spacing: .08em;
+  text-decoration: none;
+  color: var(--muted);
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  transition: color .2s, border-color .2s;
+}
+.lang:hover { color: var(--ink); border-color: var(--accent); }

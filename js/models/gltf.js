@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { TARGET_LENGTH, makeExplode } from './common.js?v=8';
+import { TARGET_LENGTH, makeExplode } from './common.js?v=9';
 
 // Универсальная загрузка модели со Sketchfab: берём все меши, переводим в общие
 // координаты, делим каждый меш на несвязанные «острова» и раскладываем их
