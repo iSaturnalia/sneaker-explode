@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { TARGET_LENGTH, makeExplode } from './common.js?v=7';
+import { TARGET_LENGTH, makeExplode } from './common.js?v=8';
 
 // Универсальная загрузка модели со Sketchfab: берём все меши, переводим в общие
 // координаты, делим каждый меш на несвязанные «острова» и раскладываем их
@@ -65,6 +65,10 @@ function subGeometry(geo, tris) {
   return g;
 }
 
+// Отдаём кадр браузеру между тяжёлыми шагами: модели догружаются в фоне,
+// и разбор на детали не должен останавливать анимацию на 100+ мс
+const yieldFrame = () => new Promise((r) => requestAnimationFrame(() => r()));
+
 export async function loadGltfModel(id, url, cfg = {}, onProgress) {
   const gltf = await new GLTFLoader().loadAsync(url, (e) => {
     if (onProgress && e.total) onProgress(e.loaded / e.total);
@@ -110,6 +114,7 @@ export async function loadGltfModel(id, url, cfg = {}, onProgress) {
   // 3. Острова
   let parts = [];
   for (const p of pieces) {
+    await yieldFrame();
     for (const tris of splitIslands(p.geo)) {
       const g = subGeometry(p.geo, tris);
       parts.push({ geo: g, material: p.material, tris: tris.length / 3, box: g.boundingBox.clone() });

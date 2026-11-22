@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
-import { loadGltfModel } from './models/gltf.js?v=7';
-import { createScenes } from './scenes.js?v=7';
-import { loadReal } from './models/real.js?v=7';
-import { MODELS, MODEL_ORDER, SCENES, THEMES } from './data.js?v=7';
+import { loadGltfModel } from './models/gltf.js?v=8';
+import { createScenes } from './scenes.js?v=8';
+import { loadReal } from './models/real.js?v=8';
+import { MODELS, MODEL_ORDER, SCENES, THEMES } from './data.js?v=8';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -385,7 +385,7 @@ function loadModel(id, onProgress) {
   if (models[id]) return Promise.resolve(models[id]);
   if (!loading[id]) {
     const m = MODELS[id];
-    const url = `${m.file}?v=7`;
+    const url = `${m.file}?v=8`;
     loading[id] = (id === 'aero' ? loadReal(url, onProgress) : loadGltfModel(id, url, TUNING[id], onProgress))
       .then((model) => {
         seat(model);
@@ -410,17 +410,19 @@ function loadModel(id, onProgress) {
 const colorsFor = (id) => models[id]?.defaults || {};
 
 const TEX_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'];
-function warmTextures(root) {
-  const seen = new Set();
+// Текстуры заливаем по одной за кадр, чтобы не было одного длинного кадра
+async function warmTextures(root) {
+  const list = new Set();
   root.traverse((o) => {
     if (!o.isMesh) return;
     for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
-      for (const k of TEX_SLOTS) {
-        const t = m[k];
-        if (t && !seen.has(t)) { seen.add(t); renderer.initTexture(t); }
-      }
+      for (const k of TEX_SLOTS) if (m[k]) list.add(m[k]);
     }
   });
+  for (const t of list) {
+    await new Promise((r) => requestAnimationFrame(() => r()));
+    renderer.initTexture(t);
+  }
 }
 
 // Ставим модель подошвой на пол: модели разной высоты, центр у всех в нуле.
@@ -1047,12 +1049,14 @@ function frame() {
   contactShadow.visible = floorAmt > 0.01;
   updateCursorGlow(dt, floorAmt);
 
-  if (Math.abs(rig.opacity - lastOpacity) > 0.002) {
-    canvas.style.opacity = rig.opacity.toFixed(3);
-    lastOpacity = rig.opacity;
+  // intro.v — проявление сцены после загрузки (0 → 1)
+  const co = rig.opacity * intro.v;
+  if (Math.abs(co - lastOpacity) > 0.002) {
+    canvas.style.opacity = co.toFixed(3);
+    lastOpacity = co;
   }
 
-  const mq = rig.opacity * (1 - rig.sceneMix) * (1 - z);
+  const mq = rig.opacity * (1 - rig.sceneMix) * (1 - z) * intro.v;
   if (Math.abs(mq - lastMarquee) > 0.002) {
     marquee.style.opacity = (mq * 0.9).toFixed(3);
     lastMarquee = mq;
@@ -1097,6 +1101,53 @@ resize();
 setScene(state.scene, true, false);
 
 const loaderEl = $('#loader');
+
+/* ---------- вход после загрузки ---------- */
+
+// Экран загрузки растворяется в темноте, из неё проступает фон со светом,
+// кроссовка собирается из деталей, затем по очереди выезжают тексты и карточки.
+const intro = { v: 0 };
+
+function runIntro() {
+  const textEls = [...document.querySelectorAll('.hero__text > *:not([hidden])')];
+  // Ленту анимируем целиком: карточки внутри перерисовываются, когда догружаются модели
+  const cards = [$('#picker')];
+  const chrome = [$('.top'), $('#dragHint')].filter(Boolean);
+  const bd = $('#backdrop');
+
+  if (reduceMotion) {
+    intro.v = 1;
+    loaderEl.classList.add('is-done');
+    loadRest();
+    return;
+  }
+
+  // CSS-переход экрана загрузки отключаем: прозрачностью теперь управляет таймлайн
+  loaderEl.style.transition = 'none';
+  // Стартовое состояние: всё в темноте, кроссовка разобрана
+  gsap.set(bd, { opacity: 0 });
+  gsap.set([...textEls, ...cards], { opacity: 0, y: 26 });
+  gsap.set(chrome, { opacity: 0 });
+  if (current) {
+    current.swap = 1;
+    current.root.scale.setScalar(0.9);
+  }
+
+  const tl = gsap.timeline({ defaults: { ease: 'power3.out' } });
+  tl.to(loaderEl, { opacity: 0, duration: 0.7, ease: 'power2.inOut', onComplete: () => loaderEl.classList.add('is-done') }, 0)
+    .to(bd, { opacity: 1, duration: 1.4, ease: 'power2.out' }, 0.15)
+    .to(intro, { v: 1, duration: 1.1, ease: 'power2.out' }, 0.35);
+  if (current) {
+    tl.to(current, { swap: 0, duration: 1.6, ease: 'power3.inOut' }, 0.35)
+      .to(current.root.scale, { x: 1, y: 1, z: 1, duration: 1.6, ease: 'power3.out' }, 0.35);
+  }
+  tl.to(chrome, { opacity: 1, duration: 0.8 }, 0.7)
+    .to(textEls, { opacity: 1, y: 0, duration: 0.9, stagger: 0.09 }, 0.75)
+    .to(cards, { opacity: 1, y: 0, duration: 0.8, stagger: 0.07 }, 1.05)
+    // Убираем инлайновые стили, чтобы дальше всё работало как обычно
+    .add(() => gsap.set([...textEls, ...cards, ...chrome, bd], { clearProps: 'opacity,transform' }))
+    .add(loadRest, '+=0.3');
+}
 const loaderBar = $('#loaderBar');
 
 function start() {
@@ -1117,12 +1168,18 @@ function start() {
     renderer.render(scene, camera);
   } catch { /* не критично */ }
   restore();
-  loaderEl.classList.add('is-done');
   renderer.setAnimationLoop(frame);
+  // Прогрев занимает пару сотен миллисекунд: стартуем вход через два кадра,
+  // чтобы эта пауза не съела начало анимации
+  requestAnimationFrame(() => requestAnimationFrame(runIntro));
   // Для замеров и тестов: ?debug в адресе открывает доступ к прокрутке и кадрам
   if (DEBUG) window.__orbit = { lenis, renderer, frame };
   ScrollTrigger.refresh();
-  // Остальные модели догружаем в фоне по очереди, чтобы не забить канал
+}
+
+// Остальные модели догружаем в фоне по очереди, когда вход закончился:
+// загрузка текстур в видеопамять во время анимации давала рывки
+function loadRest() {
   MODEL_ORDER.filter((id) => id !== state.model).reduce((p, id) => p.then(() => loadModel(id)), Promise.resolve());
 }
 

@@ -571,3 +571,11 @@ body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbin
 /* Невидимая сцена не рисуется и не анимируется */
 .sb:not(.is-on) { visibility: hidden; }
 .sb:not(.is-on) * { animation-play-state: paused; }
+@media (max-width: 760px) {
+  /* Подсказка держит место всегда (на сенсорных она видна), поэтому лента
+     карточек стоит внизу первого экрана и в узком окне с мышью */
+  .drag-hint { display: block; visibility: hidden; }
+}
+@media (max-width: 760px) and (pointer: coarse) {
+  .drag-hint { visibility: visible; }
+}
