@@ -1,10 +1,10 @@
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { Reflector } from 'three/addons/objects/Reflector.js';
-import { loadGltfModel } from './models/gltf.js?v=5';
-import { createScenes } from './scenes.js?v=5';
-import { loadReal } from './models/real.js?v=5';
-import { MODELS, MODEL_ORDER, SCENES, THEMES } from './data.js?v=5';
+import { loadGltfModel } from './models/gltf.js?v=7';
+import { createScenes } from './scenes.js?v=7';
+import { loadReal } from './models/real.js?v=7';
+import { MODELS, MODEL_ORDER, SCENES, THEMES } from './data.js?v=7';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -24,6 +24,8 @@ gsap.registerPlugin(ScrollTrigger);
 })();
 
 const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+// ?debug читаем сразу: ниже адрес перезаписывается параметрами модели и сцены
+const DEBUG = new URLSearchParams(location.search).has('debug');
 const isMobile = () => window.innerWidth < 760;
 const $ = (s) => document.querySelector(s);
 
@@ -89,7 +91,11 @@ const canvas = $('#canvas');
 // Сцена прозрачная: под ней фон с пятнами света (.backdrop)
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
 renderer.setClearColor(0x000000, 0);
-renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+// Разрешение рендера: на ретине 1.5 вместо 2–3 почти не видно, а работы втрое меньше.
+// Дальше оно подстраивается под реальную скорость (adaptQuality ниже).
+const MAX_DPR = Math.min(window.devicePixelRatio, window.innerWidth < 760 ? 1.5 : 1.75);
+let dpr = MAX_DPR;
+renderer.setPixelRatio(dpr);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
 
@@ -117,6 +123,8 @@ const FLOOR_Y = -0.6; // уровень пола: на нём стоят кро�
 const scenes = createScenes({ stage, floorY: FLOOR_Y, backdrop: document.getElementById('backdrop'), reduceMotion });
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+// Тени пересчитываем только пока блок сцен на экране
+renderer.shadowMap.autoUpdate = false;
 
 /* ---------- отражающий пол ---------- */
 
@@ -307,7 +315,12 @@ sparks.frustumCulled = false;
 holder.add(sparks);
 const sparkColor = new THREE.Color();
 
+let sparksUntil = 0;
+let sparksClear = true;
+
 function spawnSparks(n) {
+  sparksUntil = performance.now() + 1500;
+  sparksClear = false;
   for (let i = 0; i < n; i++) {
     const k = sparkNext;
     sparkNext = (sparkNext + 1) % SPARKS;
@@ -324,6 +337,15 @@ function spawnSparks(n) {
 }
 
 function updateSparks(dt) {
+  // Пока искр нет, буферы не трогаем
+  if (sparksClear) return;
+  if (performance.now() > sparksUntil) {
+    sparkLife.fill(0);
+    sparkCol.fill(0);
+    sparkGeo.attributes.color.needsUpdate = true;
+    sparksClear = true;
+    return;
+  }
   const drag = Math.max(0, 1 - dt * 2.2);
   for (let i = 0; i < SPARKS; i++) {
     if (sparkLife[i] <= 0) { sparkCol[i * 3] = sparkCol[i * 3 + 1] = sparkCol[i * 3 + 2] = 0; continue; }
@@ -363,10 +385,14 @@ function loadModel(id, onProgress) {
   if (models[id]) return Promise.resolve(models[id]);
   if (!loading[id]) {
     const m = MODELS[id];
-    const url = `${m.file}?v=5`;
+    const url = `${m.file}?v=7`;
     loading[id] = (id === 'aero' ? loadReal(url, onProgress) : loadGltfModel(id, url, TUNING[id], onProgress))
       .then((model) => {
         seat(model);
+        // Шейдеры модели собираем в фоне, пока её не показали: смена модели без фриза
+        renderer.compileAsync?.(model.root, camera, scene).catch(() => {});
+        // И текстуры заливаем в видеопамять заранее, иначе первый кадр с моделью подвисает
+        warmTextures(model.root);
         models[id] = model;
         renderPicker();
         renderCompare();
@@ -382,6 +408,20 @@ function loadModel(id, onProgress) {
 }
 
 const colorsFor = (id) => models[id]?.defaults || {};
+
+const TEX_SLOTS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'aoMap', 'emissiveMap'];
+function warmTextures(root) {
+  const seen = new Set();
+  root.traverse((o) => {
+    if (!o.isMesh) return;
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) {
+      for (const k of TEX_SLOTS) {
+        const t = m[k];
+        if (t && !seen.has(t)) { seen.add(t); renderer.initTexture(t); }
+      }
+    }
+  });
+}
 
 // Ставим модель подошвой на пол: модели разной высоты, центр у всех в нуле.
 function seat(model) {
@@ -543,6 +583,49 @@ function setupTilt() {
   }
 }
 
+/* ---------- вращение пальцем или мышью ---------- */
+
+// Горизонтальный жест на первом экране и в сценах крутит кроссовку,
+// вертикальный остаётся прокруткой. После отпускания вращение докатывается.
+let dragVel = 0;
+let dragging = null;
+const dragHint = $('#dragHint');
+
+function bindDrag(el) {
+  el.addEventListener('pointerdown', (e) => {
+    if (e.button > 0 || e.target.closest('button, a, input, .picker, .panel')) return;
+    dragging = { id: e.pointerId, x: e.clientX, y: e.clientY, t: performance.now(), decided: false, horiz: false };
+    dragVel = 0;
+  });
+}
+['#hero', '#scenes'].forEach((s) => bindDrag($(s)));
+
+window.addEventListener('pointermove', (e) => {
+  if (!dragging || e.pointerId !== dragging.id) return;
+  const dx = e.clientX - dragging.x;
+  const dy = e.clientY - dragging.y;
+  if (!dragging.decided && Math.hypot(dx, dy) > 8) {
+    dragging.decided = true;
+    dragging.horiz = Math.abs(dx) > Math.abs(dy) * 1.2;
+    if (dragging.horiz) { document.body.classList.add('is-dragging'); dragHint?.classList.add('is-gone'); }
+  }
+  if (!dragging.horiz) return;
+  const now = performance.now();
+  const d = dx * 0.011;
+  spin += d;
+  dragVel = (d / Math.max(8, now - dragging.t)) * 16;
+  dragging.x = e.clientX;
+  dragging.y = e.clientY;
+  dragging.t = now;
+});
+const endDrag = (e) => {
+  if (!dragging || (e.pointerId !== undefined && e.pointerId !== dragging.id)) return;
+  dragging = null;
+  document.body.classList.remove('is-dragging');
+};
+window.addEventListener('pointerup', endDrag);
+window.addEventListener('pointercancel', endDrag);
+
 /* ---------- rig: положение модели и камеры по блокам ---------- */
 
 const rig = {
@@ -559,8 +642,9 @@ function preset(name) {
     case 'hero': return { ...base, x: m ? 0 : 0.95, y: m ? -0.45 : -0.1, scale: m ? 0.92 : 1.05 };
     case 'explode': return { ...base, x: m ? 0 : -0.8, y: m ? 0.5 : 0, scale: m ? 0.72 : 0.95, explodeMix: 1, lockMix: 1, lockAngle: -0.55 };
     case 'dim': return { ...base, x: 0, y: m ? 0.6 : 0.2, scale: 0.8, opacity: 0.16 };
-    case 'closeup': return { ...base, x: 0, y: m ? 0.35 : 0, scale: 1, zoomMix: 1, lockMix: 1, lockAngle: 0 };
-    case 'scenes': return { ...base, x: m ? 0 : 0.85, y: m ? 1.6 : 0.15, scale: m ? 0.72 : 0.95, sceneMix: 1 };
+    case 'closeup': return { ...base, x: 0, y: m ? 0.15 : 0, scale: 1, zoomMix: 1, lockMix: 1, lockAngle: 0 };
+    // На телефоне постамент стоит на линии горизонта фона, панель — ниже
+    case 'scenes': return { ...base, x: m ? 0 : 0.85, y: m ? 0.75 : 0.15, scale: m ? 0.72 : 0.95, sceneMix: 1 };
     case 'cart': return { ...base, x: m ? 0 : 0.85, y: m ? 1.7 : 0, scale: m ? 0.72 : 0.95 };
     default: return base;
   }
@@ -776,7 +860,11 @@ const anchorV = new THREE.Vector3();
 const centerV = new THREE.Vector3();
 
 // Подпись появляется, когда её деталь отъехала, и уводится линией от центра модели
+let calloutsIdle = true;
 function updateCallouts(scrollEx) {
+  // Вне блока разбора и когда всё скрыто — ничего не считаем и не трогаем DOM
+  if (rig.explodeMix < 0.005 && calloutsIdle) return;
+  calloutsIdle = callouts.every((c) => c.shown < 0.01) && rig.explodeMix < 0.005;
   const model = current;
   const W = window.innerWidth;
   const H = window.innerHeight;
@@ -843,6 +931,10 @@ const closeOffset = new THREE.Vector3(0.45, 0.25, 2.1);
 const closeLook = new THREE.Vector3(0.35, 0.05, 0);
 
 function resize() {
+  // На узком экране крупный план отъезжает и смотрит выше, чтобы кроссовка
+  // была над текстом, а не под ним
+  if (window.innerWidth < 760) { closeOffset.set(0.2, -0.12, 3.0); closeLook.set(0.15, -0.42, 0); }
+  else { closeOffset.set(0.45, 0.25, 2.1); closeLook.set(0.35, 0.05, 0); }
   const w = window.innerWidth;
   const h = window.innerHeight;
   renderer.setSize(w, h, false);
@@ -856,6 +948,30 @@ function resize() {
   goPreset(currentPreset, true);
 }
 window.addEventListener('resize', resize);
+
+// Адаптивное разрешение: если кадр стабильно дольше ~22 мс, снижаем плотность
+// пикселей шагами по 0.25 (до 1), если устройство справляется с запасом — возвращаем.
+let qAcc = 0;
+let qFrames = 0;
+function setRenderSize() {
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  renderer.setPixelRatio(dpr);
+  renderer.setSize(w, h, false);
+  const pr = dpr * 0.5;
+  floor.getRenderTarget().setSize(Math.round(w * pr), Math.round(h * pr));
+}
+function adaptQuality(ms) {
+  if (ms > 250) return; // вкладка была в фоне
+  qAcc += ms;
+  qFrames++;
+  if (qFrames < 90) return;
+  const avg = qAcc / qFrames;
+  qAcc = 0;
+  qFrames = 0;
+  if (avg > 22 && dpr > 1) { dpr = Math.max(1, dpr - 0.25); setRenderSize(); }
+  else if (avg < 13 && dpr < MAX_DPR) { dpr = Math.min(MAX_DPR, dpr + 0.25); setRenderSize(); }
+}
 
 const clock = new THREE.Clock();
 const backdrop = $('#backdrop');
@@ -879,8 +995,15 @@ function angleLerp(from, to, t) {
 }
 
 function frame() {
-  const dt = Math.min(clock.getDelta(), 0.05);
-  if (!reduceMotion) spin += dt * 0.35;
+  const raw = clock.getDelta();
+  const dt = Math.min(raw, 0.05);
+  adaptQuality(raw * 1000);
+  if (!reduceMotion && !dragging) spin += dt * 0.35;
+  // Докат после жеста
+  if (!dragging && Math.abs(dragVel) > 0.0001) {
+    spin += dragVel * dt * 60;
+    dragVel *= Math.pow(0.9, dt * 60);
+  }
 
   const k = Math.min(1, dt * 6);
   rig.explode += (rig.explodeTarget - rig.explode) * k;
@@ -952,6 +1075,7 @@ function frame() {
   fill.color.copy(white).lerp(sceneCol.fill, sm);
   // Свой свет у каждой сцены: общий свет приглушаем, чтобы он не забивал её
   const { wc, wg, wt } = scenes.update(sm, performance.now() / 1000);
+  if (sm > 0.01) renderer.shadowMap.needsUpdate = true;
   key.intensity = 2 - wc * 1.2 - wg * 1.5 - wt * 1.1;
   rim.intensity = 1 + sm * 1.2;
   fill.intensity = 0.5 - wg * 0.35 - wt * 0.2;
@@ -982,8 +1106,21 @@ function start() {
   renderAll();
   renderCredits();
   saveURL();
+  // Прогрев: шейдеры всего, что появится позже (постаменты сцен, тени), собираем
+  // сейчас, под экраном загрузки, а не в момент первого показа
+  // Одной компиляции мало: ещё нужны шейдеры теней и загрузка текстур в видеопамять,
+  // поэтому делаем одну настоящую отрисовку со всеми постаментами и тенями.
+  const restore = scenes.prepareWarmup();
+  try {
+    renderer.compile(scene, camera);
+    renderer.shadowMap.needsUpdate = true;
+    renderer.render(scene, camera);
+  } catch { /* не критично */ }
+  restore();
   loaderEl.classList.add('is-done');
   renderer.setAnimationLoop(frame);
+  // Для замеров и тестов: ?debug в адресе открывает доступ к прокрутке и кадрам
+  if (DEBUG) window.__orbit = { lenis, renderer, frame };
   ScrollTrigger.refresh();
   // Остальные модели догружаем в фоне по очереди, чтобы не забить канал
   MODEL_ORDER.filter((id) => id !== state.model).reduce((p, id) => p.then(() => loadModel(id)), Promise.resolve());

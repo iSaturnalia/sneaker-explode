@@ -287,6 +287,14 @@ export function createScenes({ stage, floorY, backdrop, reduceMotion }) {
     s.visible = false;
     stage.add(s);
   }
+
+  // Прогрев: на время компиляции показываем все постаменты, чтобы их шейдеры
+  // собрались заранее, а не в момент первого появления.
+  function prepareWarmup() {
+    const prev = IDS.map((k) => [stands[k].visible, stands[k].scale.clone()]);
+    IDS.forEach((k) => { stands[k].visible = true; stands[k].scale.set(1, 1, 1); });
+    return () => IDS.forEach((k, i) => { stands[k].visible = prev[i][0]; stands[k].scale.copy(prev[i][1]); });
+  }
   const lights = buildLights(stage);
   lights.gymSpot.target.position.set(0, floorY, 0);
   lights.trailSun.target.position.set(0, floorY, 0);
@@ -310,7 +318,12 @@ export function createScenes({ stage, floorY, backdrop, reduceMotion }) {
       s.visible = e > 0.01;
       s.scale.set(0.7 + 0.3 * e, Math.max(0.001, e), 0.7 + 0.3 * e);
       const o = e.toFixed(3);
-      if (lastOpacity[k] !== o) { bgs[k].style.opacity = o; lastOpacity[k] = o; }
+      if (lastOpacity[k] !== o) {
+        bgs[k].style.opacity = o;
+        // Невидимый фон убираем из отрисовки и ставим его анимации на паузу
+        bgs[k].classList.toggle('is-on', e > 0.001);
+        lastOpacity[k] = o;
+      }
     }
     const wc = sm * weights.city;
     const wg = sm * weights.gym;
@@ -322,10 +335,10 @@ export function createScenes({ stage, floorY, backdrop, reduceMotion }) {
     lights.gymSpot.intensity = 70 * wg;
     lights.trailSun.intensity = 3.2 * wt;
     lights.trailSky.intensity = 1.1 * wt;
-    lights.gymSpot.visible = wg > 0.01;
-    lights.trailSun.visible = wt > 0.01;
+    // Свет никогда не прячем через visible: смена числа источников заставляет
+    // three.js пересобрать шейдеры всех материалов, это и было фризом.
     return { wc, wg, wt };
   }
 
-  return { setScene, update, weights };
+  return { setScene, update, weights, prepareWarmup };
 }

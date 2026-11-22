@@ -11,7 +11,7 @@
   --ink: #f4f1ea;
   --muted: #a8a49c;
   --line: rgba(244, 241, 234, .14);
-  --panel: rgba(12, 12, 14, .62);
+  --panel: rgba(12, 12, 14, .86);
   --accent: #ff5a1f;
   --accent-ink: #ffffff;
   --radius: 18px;
@@ -124,8 +124,6 @@ main, .foot { position: relative; z-index: 3; }
   border: 1px solid var(--line);
   border-radius: 999px;
   background: var(--panel);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: .04em;
@@ -221,8 +219,6 @@ h2 { margin: 0 0 12px; font-size: clamp(26px, 3.4vw, 40px); line-height: 1.05; }
 .panel {
   width: min(420px, 100%);
   background: var(--panel);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 26px;
@@ -242,8 +238,6 @@ h2 { margin: 0 0 12px; font-size: clamp(26px, 3.4vw, 40px); line-height: 1.05; }
   text-align: left;
   color: var(--ink);
   background: var(--panel);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
   border: 1px solid var(--line);
   border-radius: 14px;
   padding: 14px 16px;
@@ -309,8 +303,6 @@ h2 { margin: 0 0 12px; font-size: clamp(26px, 3.4vw, 40px); line-height: 1.05; }
 }
 .card {
   background: var(--panel);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
   border: 1px solid var(--line);
   border-radius: var(--radius);
   padding: 20px;
@@ -375,8 +367,6 @@ h2 { margin: 0 0 12px; font-size: clamp(26px, 3.4vw, 40px); line-height: 1.05; }
   border-radius: var(--radius);
   border: 1px solid var(--line);
   background: var(--panel);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
 }
 .closeup__text p:last-child { color: var(--muted); line-height: 1.6; margin: 0; }
 
@@ -469,7 +459,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   .pick { flex: 0 0 42%; scroll-snap-align: start; padding: 12px; }
 
   .chapters { left: 16px; right: 16px; top: auto; bottom: 72px; transform: none; width: auto; }
-  .chapters li { background: var(--panel); backdrop-filter: blur(10px); padding: 14px; border-radius: 14px; }
+  .chapters li { background: var(--panel); padding: 14px; border-radius: 14px; }
   .chapters h2 { font-size: 20px; }
   .chapters p { font-size: 14px; }
   .explode__progress { left: 16px; bottom: auto; top: 64px; }
@@ -487,7 +477,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 
 /* ---------- фоны сцен (под прозрачной 3D-сценой) ---------- */
 .scenebg { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
-.sb { position: absolute; inset: 0; opacity: 0; overflow: hidden; }
+.sb { position: absolute; inset: 0; opacity: 0; overflow: hidden; contain: strict; will-change: opacity; }
 
 /* Город ночью: неон, небоскрёбы с окнами, дождь, мокрый асфальт */
 .sb-city__sky { position: absolute; inset: 0; background: linear-gradient(#05061a 0%, #140c2e 45%, #2b0f33 70%, #0a0814 100%); }
@@ -504,6 +494,7 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   background: repeating-linear-gradient(100deg, transparent 0 22px, rgba(180, 200, 255, .09) 22px 23px);
   background-size: 100% 260px;
   animation: rain .6s linear infinite;
+  will-change: transform;
 }
 .sb-city__wet {
   position: absolute; left: 0; right: 0; bottom: 0; height: 22%;
@@ -531,7 +522,8 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
   position: absolute; left: 50%; top: -10%; width: 70%; height: 120%; transform: translateX(-30%);
   background: linear-gradient(rgba(255, 220, 170, .32), rgba(255, 220, 170, 0) 85%);
   clip-path: polygon(44% 0, 56% 0, 100% 100%, 0 100%);
-  filter: blur(18px);
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 30%, #000 70%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 30%, #000 70%, transparent);
 }
 
 /* Тропа: закатное небо, солнце, слои гор с ельником, туман */
@@ -543,8 +535,8 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 .sb-mountains { position: absolute; left: 0; right: 0; bottom: 0; width: 100%; height: 70%; }
 .sb-trail__mist {
   position: absolute; left: -20%; right: -20%; bottom: 14%; height: 22%;
-  background: linear-gradient(transparent, rgba(220, 235, 220, .22), transparent);
-  filter: blur(10px);
+  background: radial-gradient(60% 50% at 50% 50%, rgba(220, 235, 220, .22), transparent 70%);
+  will-change: transform;
   animation: mist 26s ease-in-out infinite alternate;
 }
 .sb-trail__mist--2 { bottom: 4%; height: 16%; opacity: .7; animation-duration: 34s; animation-direction: alternate-reverse; }
@@ -553,3 +545,29 @@ button:focus-visible, a:focus-visible, input:focus-visible { outline: 2px solid 
 @media (prefers-reduced-motion: reduce) {
   .sb-city__rain, .sb-city__neon, .sb-trail__mist { animation: none; }
 }
+
+
+/* ---------- вращение жестом ---------- */
+/* Вертикальный свайп — прокрутка, горизонтальный достаётся нам для вращения */
+.hero, .scenes { touch-action: pan-y; }
+body.is-dragging { user-select: none; -webkit-user-select: none; cursor: grabbing; }
+.drag-hint {
+  display: none;
+  align-self: center;
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: .06em;
+  color: var(--muted);
+  transition: opacity .6s;
+}
+.drag-hint.is-gone { opacity: 0; }
+@media (pointer: coarse) { .drag-hint { display: block; } }
+@media (max-width: 760px) {
+  /* Подсказка сразу над лентой карточек, под кроссовкой */
+  .hero { justify-content: flex-start; }
+  .drag-hint { margin: auto 0 10px; }
+}
+
+/* Невидимая сцена не рисуется и не анимируется */
+.sb:not(.is-on) { visibility: hidden; }
+.sb:not(.is-on) * { animation-play-state: paused; }

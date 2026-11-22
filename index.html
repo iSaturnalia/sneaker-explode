@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=5">
+  <link rel="stylesheet" href="css/style.css?v=7">
   <script type="importmap">
   {
     "imports": {
@@ -68,7 +68,9 @@
         <p class="lead" id="heroTagline"></p>
         <button type="button" class="tilt-btn" id="tiltBtn" hidden>Крутить наклоном телефона</button>
       </div>
-      <div class="picker" role="tablist" aria-label="Модель" id="picker"></div>
+      <p class="drag-hint" id="dragHint" aria-hidden="true">← Потяните, чтобы повернуть →</p>
+      <!-- data-lenis-prevent-touch: свайпы по ленте остаются родными, она листается вбок -->
+      <div class="picker" role="tablist" aria-label="Модель" id="picker" data-lenis-prevent-touch></div>
     </section>
 
     <!-- 2. Разбор по слоям -->
@@ -124,6 +126,6 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
   <script src="https://unpkg.com/lenis@1.1.13/dist/lenis.min.js"></script>
-  <script type="module" src="js/main.js?v=5"></script>
+  <script type="module" src="js/main.js?v=7"></script>
 </body>
 </html>
