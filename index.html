@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AIR ORBIT 01 — разбор кроссовки</title>
+  <meta name="description" content="Кроссовка по скроллу разбирается на слои: подошва, промежуточная подошва, верх, шнурки. Модель строится в 3D в браузере.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@600;800&family=Manrope:wght@400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+</head>
+<body>
+  <header class="top">
+    <span class="logo">AIR ORBIT</span>
+    <span class="top__price">12 900 ₽</span>
+  </header>
+
+  <section class="scroll" id="scroll">
+    <div class="sticky">
+      <canvas id="canvas" aria-label="3D-модель кроссовки"></canvas>
+
+      <div class="intro" id="intro">
+        <p class="eyebrow">Новинка · 2026</p>
+        <h1>AIR<br>ORBIT 01</h1>
+        <p class="lead">Прокрути, чтобы увидеть, из чего она сделана.</p>
+      </div>
+
+      <ol class="chapters" id="chapters">
+        <li data-step="0">
+          <span class="num">01</span>
+          <div><h2>Подошва</h2><p>Резина с рисунком сцепления для асфальта и мокрых улиц.</p></div>
+        </li>
+        <li data-step="1">
+          <span class="num">02</span>
+          <div><h2>Амортизация</h2><p>Промежуточная подошва из вспененного полимера возвращает энергию шага.</p></div>
+        </li>
+        <li data-step="2">
+          <span class="num">03</span>
+          <div><h2>Верх</h2><p>Дышащий текстиль без швов в зоне носка. Легче на 18% прежней модели.</p></div>
+        </li>
+        <li data-step="3">
+          <span class="num">04</span>
+          <div><h2>Шнуровка</h2><p>Плоские шнурки и язычок на подкладке, чтобы не натирало.</p></div>
+        </li>
+      </ol>
+
+      <div class="progress" aria-hidden="true"><span id="bar"></span></div>
+    </div>
+  </section>
+
+  <section class="outro">
+    <h2>Собери свою пару</h2>
+    <p>Цвет подошвы, верха и шнурков. Размеры с 36 по 46.</p>
+    <button type="button" class="cta">Выбрать размер</button>
+  </section>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"></script>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>

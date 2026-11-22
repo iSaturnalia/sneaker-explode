@@ -1,0 +1,181 @@
+:root {
+  --bg: #0f0f11;
+  --ink: #f4f1ea;
+  --muted: #9a968e;
+  --accent: #ff5a1f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font-family: "Manrope", system-ui, sans-serif;
+}
+
+.top {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  z-index: 10;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 18px 24px;
+  mix-blend-mode: difference;
+  pointer-events: none;
+}
+.logo, .top__price {
+  font-family: "Unbounded", sans-serif;
+  font-weight: 800;
+  font-size: 14px;
+  letter-spacing: .08em;
+}
+
+/* Высота секции задаёт длину скролла разборки */
+.scroll { position: relative; height: 420vh; }
+
+.sticky {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+
+#canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+/* ---------- intro ---------- */
+.intro {
+  position: absolute;
+  left: 24px;
+  bottom: 14vh;
+  max-width: 520px;
+  pointer-events: none;
+  transition: opacity .4s;
+}
+.eyebrow {
+  margin: 0 0 10px;
+  font-size: 12px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-weight: 800;
+}
+.intro h1 {
+  margin: 0;
+  font-family: "Unbounded", sans-serif;
+  font-weight: 800;
+  font-size: clamp(44px, 9vw, 120px);
+  line-height: .95;
+  letter-spacing: -.02em;
+}
+.lead { color: var(--muted); font-size: 18px; margin: 18px 0 0; }
+
+/* ---------- chapters ---------- */
+.chapters {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  position: absolute;
+  right: 24px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: min(360px, 40vw);
+}
+.chapters li {
+  position: absolute;
+  right: 0;
+  top: 0;
+  width: 100%;
+  display: flex;
+  gap: 14px;
+  opacity: 0;
+  transform: translateY(16px);
+}
+.num {
+  font-family: "Unbounded", sans-serif;
+  font-size: 14px;
+  color: var(--accent);
+  padding-top: 6px;
+}
+.chapters h2 {
+  margin: 0 0 8px;
+  font-family: "Unbounded", sans-serif;
+  font-weight: 800;
+  font-size: 26px;
+}
+.chapters p { margin: 0; color: var(--muted); line-height: 1.5; font-size: 16px; }
+
+/* ---------- progress ---------- */
+.progress {
+  position: absolute;
+  left: 24px;
+  bottom: 36px;
+  width: 120px;
+  height: 2px;
+  background: rgba(255,255,255,.14);
+}
+.progress span {
+  display: block;
+  height: 100%;
+  width: 0;
+  background: var(--ink);
+}
+
+/* ---------- outro ---------- */
+.outro {
+  height: 80vh;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: 14px;
+  padding: 24px;
+}
+.outro h2 {
+  margin: 0;
+  font-family: "Unbounded", sans-serif;
+  font-weight: 800;
+  font-size: clamp(30px, 5vw, 56px);
+}
+.outro p { color: var(--muted); margin: 0; }
+.cta {
+  justify-self: center;
+  font: inherit;
+  font-weight: 800;
+  font-size: 16px;
+  color: #0f0f11;
+  background: var(--ink);
+  border: 0;
+  border-radius: 999px;
+  padding: 16px 32px;
+  cursor: pointer;
+  margin-top: 10px;
+}
+.cta:hover { background: var(--accent); color: #fff; }
+
+/* ---------- phone ---------- */
+@media (max-width: 760px) {
+  .intro { bottom: auto; top: 22vh; left: 20px; right: 20px; max-width: none; }
+  .intro h1 { font-size: 52px; }
+  .lead { font-size: 16px; }
+  .chapters {
+    right: 20px; left: 20px; top: auto; bottom: 90px;
+    transform: none; width: auto;
+  }
+  .chapters li { background: rgba(15,15,17,.72); backdrop-filter: blur(8px); padding: 14px; border-radius: 14px; }
+  .chapters h2 { font-size: 20px; }
+  .chapters p { font-size: 14px; }
+}
+
+/* На телефоне прогресс переезжает наверх, чтобы не спорить с главами */
+@media (max-width: 760px) {
+  .progress { top: 64px; bottom: auto; left: 20px; }
+}
